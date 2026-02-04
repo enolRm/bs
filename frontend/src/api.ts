@@ -1,0 +1,26 @@
+import axios from "axios";
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1";
+
+export const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 30000
+});
+
+export type Knowledge = {
+  id: number;
+  chain_id: number | null;
+  title: string;
+  content: string;
+  content_hash: string;
+  source: string | null;
+  submitter_address: string | null;
+  created_at: string;
+  status: "pending" | "verified" | "rejected";
+};
+
+export type KnowledgeHistoryItem = {
+  content_hash: string;
+  created_at: string;
+};
+

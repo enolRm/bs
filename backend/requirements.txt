@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+sqlalchemy
+alembic
+httpx
+chromadb
+pydantic
+web3
+scikit-learn
+
