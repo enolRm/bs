@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..embeddings import embed_texts
-from ..llm import deepseek_client
+from ..llm import zhipuai_client
 from ..models import Knowledge, KnowledgeStatus
 from ..vector_store import vector_store
 
@@ -59,7 +59,7 @@ async def qa_endpoint(
     # 如果没有任何“已通过”的知识，就直接用问题调用大模型
     if not contexts:
         try:
-            answer = await deepseek_client.chat(
+            answer = await zhipuai_client.chat(
                 [
                     {
                         "role": "user",
@@ -88,7 +88,7 @@ async def qa_endpoint(
     user_prompt = f"用户问题：{question}\n\n以下是可用的知识内容：\n{context_text}"
 
     try:
-        answer = await deepseek_client.chat(
+        answer = await zhipuai_client.chat(
             [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},

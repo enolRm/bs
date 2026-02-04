@@ -24,7 +24,7 @@ async def approve_knowledge(
     """
     临时简化版“审核通过”接口：
     - 将知识状态置为 verified
-    - 调用 DeepSeek embedding 生成向量
+    - 调用 智谱AI embedding 生成向量
     - 写入本地 Chroma 向量库
 
     后续可以将此逻辑改为由链上事件触发。

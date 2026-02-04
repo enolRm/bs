@@ -14,11 +14,10 @@ class Settings:
     PROJECT_NAME: str = "Trusted RAG Knowledge Base"
     API_V1_PREFIX: str = "/api/v1"
 
-    # DeepSeek 相关
-    DEEPSEEK_API_KEY: str | None = os.getenv("DEEPSEEK_API_KEY")
-    DEEPSEEK_BASE_URL: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
-    DEEPSEEK_MODEL: str = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-    DEEPSEEK_EMBED_MODEL: str = os.getenv("DEEPSEEK_EMBED_MODEL", "deepseek-embedding")
+    # 智谱AI 相关
+    ZHIPUAI_API_KEY: str | None = os.getenv("ZHIPUAI_API_KEY")
+    ZHIPUAI_MODEL: str = os.getenv("ZHIPUAI_MODEL", "glm-4")
+    ZHIPUAI_EMBED_MODEL: str = os.getenv("ZHIPUAI_EMBED_MODEL", "embedding-2")
     # 是否使用模拟模式（当 API 不可用时，用于演示）
     USE_MOCK_LLM: bool = os.getenv("USE_MOCK_LLM", "false").lower() == "true"
 

@@ -8,4 +8,5 @@ chromadb
 pydantic
 web3
 scikit-learn
+zhipuai
 
