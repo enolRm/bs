@@ -91,5 +91,3 @@ cache/**
 *.bak
 *.tmp
 *.swp
-
-contract.go
