@@ -77,8 +77,6 @@ func (kc *KnowledgeContract) InvokeContract(stub shim.CMStubInterface) protogo.R
 		return kc.UpdateKnowledge(stub)
 	case "queryKnowledgeById":
 		return kc.QueryKnowledgeById(stub)
-	case "queryKnowledgeByStatus":
-		return kc.QueryKnowledgeByStatus(stub)
 	// 验证投票
 	case "castVote":
 		return kc.CastVote(stub)
