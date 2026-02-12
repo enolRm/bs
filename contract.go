@@ -43,7 +43,7 @@ type VerificationVote struct {
 	ApproveVotes int64  `json:"approve_votes"` // 同意加权票数
 	RejectVotes  int64  `json:"reject_votes"`  // 反对加权票数
 	StartTime    int64  `json:"start_time"`    // 投票开始时间（毫秒）
-	EndTime      int64  `json:"end_time"`      // 投票结束时间（毫秒，72小时）
+	EndTime      int64  `json:"end_time"`      // 投票结束时间（毫秒）
 }
 
 // RoleType 用户角色
@@ -58,13 +58,6 @@ const (
 // ========== 合约核心方法 ==========
 // InitContract 合约初始化
 func (kc *KnowledgeContract) InitContract(stub shim.CMStubInterface) protogo.Response {
-	// 初始化管理员角色（可通过参数配置，这里简化为固定地址演示）
-	adminAddr := "admin_address" // 实际部署时替换为真实管理员地址
-	err := stub.PutStateFromKeyByte("role_"+adminAddr, []byte(strconv.Itoa(int(RoleAdmin))))
-	if err != nil {
-		stub.Log("初始化管理员角色失败: " + err.Error())
-		return shim.Error("Init contract failed: " + err.Error())
-	}
 	return shim.Success([]byte("Init Knowledge Contract Success"))
 }
 
@@ -91,9 +84,6 @@ func (kc *KnowledgeContract) InvokeContract(stub shim.CMStubInterface) protogo.R
 		return kc.CastVote(stub)
 	case "judgeVerificationResult":
 		return kc.JudgeVerificationResult(stub)
-	// 角色管理
-	case "setExpertRole":
-		return kc.SetExpertRole(stub)
 	default:
 		return shim.Error("invalid method: " + method)
 	}
@@ -109,6 +99,7 @@ func (kc *KnowledgeContract) SubmitKnowledge(stub shim.CMStubInterface) protogo.
 	sourceCredential := string(params["source_credential"])
 	submitter := string(params["submitter"])
 	updateRecordHash := string(params["update_record_hash"]) // 首次提交为空
+	voteDurationStr := string(params["vote_duration_ms"])
 
 	// 参数校验
 	if id == "" || contentHash == "" || sourceCredential == "" || submitter == "" {
@@ -125,8 +116,17 @@ func (kc *KnowledgeContract) SubmitKnowledge(stub shim.CMStubInterface) protogo.
 		return shim.Error("knowledge id already exist")
 	}
 
-	// 构建知识对象
+	// 使用业务侧传入的投票周期（毫秒），若未传入使用默认72小时
+	var voteDurationMillis int64 = 72 * 3600 * 1000
+	if voteDurationStr != "" {
+		if v, err := strconv.ParseInt(voteDurationStr, 10, 64); err == nil && v > 0 {
+			voteDurationMillis = v
+		}
+	}
+
+	// 构建知识对象，并生成唯一的 verification id（包含时间戳）
 	now := time.Now().UnixMilli()
+	verificationID := "verify_" + id + "_" + strconv.FormatInt(now, 10)
 	knowledge := &Knowledge{
 		ID:               id,
 		ContentHash:      contentHash,
@@ -135,7 +135,7 @@ func (kc *KnowledgeContract) SubmitKnowledge(stub shim.CMStubInterface) protogo.
 		Timestamp:        now,
 		Status:           StatusPending,
 		UpdateRecordHash: updateRecordHash,
-		VerificationID:   "verify_" + id, // 关联验证ID
+		VerificationID:   verificationID, // 关联验证ID
 	}
 
 	// 序列化存储
@@ -148,8 +148,8 @@ func (kc *KnowledgeContract) SubmitKnowledge(stub shim.CMStubInterface) protogo.
 		return shim.Error("save knowledge failed: " + err.Error())
 	}
 
-	// 初始化验证投票
-	err = kc.initVerificationVote(stub, knowledge.VerificationID, id)
+	// 初始化验证投票（周期由业务侧传入）
+	err = kc.initVerificationVote(stub, knowledge.VerificationID, id, voteDurationMillis)
 	if err != nil {
 		return shim.Error("init verification vote failed: " + err.Error())
 	}
@@ -168,7 +168,9 @@ func (kc *KnowledgeContract) UpdateKnowledge(stub shim.CMStubInterface) protogo.
 	newContentHash := string(params["new_content_hash"])
 	newSourceCredential := string(params["new_source_credential"])
 	operator := string(params["operator"])
+	operatorRole := string(params["operator_role"])
 	newUpdateRecordHash := string(params["new_update_record_hash"])
+	voteDurationStr := string(params["vote_duration_ms"]) // 可选，更新后重新发起投票的时长（ms）
 
 	// 参数校验
 	if id == "" || newContentHash == "" || operator == "" {
@@ -193,7 +195,7 @@ func (kc *KnowledgeContract) UpdateKnowledge(stub shim.CMStubInterface) protogo.
 	}
 
 	// 权限校验：仅提交者或管理员可更新
-	if operator != knowledge.Submitter && !kc.isAdmin(stub, operator) {
+	if operator != knowledge.Submitter && !kc.isAdminRole(operatorRole) {
 		return shim.Error("permission denied: only submitter or admin can update")
 	}
 
@@ -205,6 +207,13 @@ func (kc *KnowledgeContract) UpdateKnowledge(stub shim.CMStubInterface) protogo.
 	knowledge.UpdateRecordHash = newUpdateRecordHash
 	knowledge.Timestamp = time.Now().UnixMilli() // 更新时间戳
 
+	// 更新后需要重新发起验证投票
+	// 生成新的 verification id
+	knowledge.Status = StatusPending // 更新后状态重置为待验证
+	now := time.Now().UnixMilli()
+	newVerifyID := "verify_" + id + "_" + strconv.FormatInt(now, 10)
+	knowledge.VerificationID = newVerifyID
+
 	// 重新序列化存储
 	newKnowledgeBytes, err := json.Marshal(knowledge)
 	if err != nil {
@@ -213,6 +222,17 @@ func (kc *KnowledgeContract) UpdateKnowledge(stub shim.CMStubInterface) protogo.
 	err = stub.PutStateFromKeyByte(key, newKnowledgeBytes)
 	if err != nil {
 		return shim.Error("update knowledge failed: " + err.Error())
+	}
+
+	// 初始化新的验证投票，使用业务侧传入的投票周期（若为空则使用默认72小时）
+	var voteDurationMillis int64 = 72 * 3600 * 1000
+	if voteDurationStr != "" {
+		if v, err := strconv.ParseInt(voteDurationStr, 10, 64); err == nil && v > 0 {
+			voteDurationMillis = v
+		}
+	}
+	if err := kc.initVerificationVote(stub, knowledge.VerificationID, id, voteDurationMillis); err != nil {
+		return shim.Error("init verification vote after update failed: " + err.Error())
 	}
 
 	// 发送事件
@@ -243,30 +263,14 @@ func (kc *KnowledgeContract) QueryKnowledgeById(stub shim.CMStubInterface) proto
 	return shim.Success(result)
 }
 
-// QueryKnowledgeByStatus 根据状态查询知识（修复未使用变量问题，适配长安链体验版）
-func (kc *KnowledgeContract) QueryKnowledgeByStatus(stub shim.CMStubInterface) protogo.Response {
-	params := stub.GetArgs()
-	statusStr := string(params["status"])
-	status, err := strconv.Atoi(statusStr)
-	if err != nil || status < 0 || status > 2 {
-		return shim.Error("params error: status must be int (0/1/2)")
-	}
-
-	// 适配长安链体验版：若不支持范围查询，直接返回空数组（无未使用变量）
-	// 如需完整功能，待确认长安链版本支持的接口后，可替换为前缀查询逻辑
-	emptyList := make([]*Knowledge, 0)
-	emptyBytes, err := json.Marshal(emptyList)
-	if err != nil {
-		return shim.Error("marshal empty list failed: " + err.Error())
-	}
-
-	return shim.Success(emptyBytes)
-}
 
 // ========== 验证投票核心方法 ==========
 // initVerificationVote 初始化验证投票（72小时有效期）
-func (kc *KnowledgeContract) initVerificationVote(stub shim.CMStubInterface, verifyID, knowledgeID string) error {
+func (kc *KnowledgeContract) initVerificationVote(stub shim.CMStubInterface, verifyID, knowledgeID string, durationMillis int64) error {
 	now := time.Now().UnixMilli()
+	if durationMillis <= 0 {
+		durationMillis = 72 * 3600 * 1000
+	}
 	vote := &VerificationVote{
 		ID:           verifyID,
 		KnowledgeID:  knowledgeID,
@@ -274,7 +278,7 @@ func (kc *KnowledgeContract) initVerificationVote(stub shim.CMStubInterface, ver
 		ApproveVotes: 0,
 		RejectVotes:  0,
 		StartTime:    now,
-		EndTime:      now + 72*3600*1000, // 72小时后结束
+		EndTime:      now + durationMillis,
 	}
 
 	// 序列化存储
@@ -307,6 +311,7 @@ func (kc *KnowledgeContract) CastVote(stub shim.CMStubInterface) protogo.Respons
 	verifyID := string(params["verify_id"])
 	voter := string(params["voter"])
 	voteTypeStr := string(params["vote_type"]) // 0:反对,1:同意
+	voterRoleStr := string(params["voter_role"]) // 传入角色: 0/1/2
 
 	// 参数校验
 	if verifyID == "" || voter == "" || voteTypeStr == "" {
@@ -355,13 +360,13 @@ func (kc *KnowledgeContract) CastVote(stub shim.CMStubInterface) protogo.Respons
 		return shim.Error("voter already cast vote")
 	}
 
-	// 获取投票权重（普通用户1，专家2）
+	// 获取投票权重（角色由业务侧传入，普通用户1，专家2）
 	weight := int64(1)
-	roleBytes, err := stub.GetStateFromKeyByte("role_" + voter) // 修复参数错误
-	if err == nil && len(roleBytes) > 0 {
-		role, _ := strconv.Atoi(string(roleBytes))
-		if RoleType(role) == RoleExpert {
-			weight = 2
+	if voterRoleStr != "" {
+		if r, err := strconv.Atoi(voterRoleStr); err == nil {
+			if RoleType(r) == RoleExpert {
+				weight = 2
+			}
 		}
 	}
 
@@ -487,40 +492,18 @@ func (kc *KnowledgeContract) JudgeVerificationResult(stub shim.CMStubInterface) 
 	return shim.Success([]byte("judge success, knowledge status: " + strconv.Itoa(int(newStatus))))
 }
 
-// ========== 角色管理方法 ==========
-// SetExpertRole 设置专家角色（仅管理员可操作）
-func (kc *KnowledgeContract) SetExpertRole(stub shim.CMStubInterface) protogo.Response {
-	params := stub.GetArgs()
-	admin := string(params["admin"])
-	expertAddr := string(params["expert_addr"])
-
-	// 权限校验
-	if !kc.isAdmin(stub, admin) {
-		return shim.Error("permission denied: only admin can set expert role")
-	}
-
-	// 设置角色
-	err := stub.PutStateFromKeyByte("role_"+expertAddr, []byte(strconv.Itoa(int(RoleExpert))))
-	if err != nil {
-		return shim.Error("set expert role failed: " + err.Error())
-	}
-
-	stub.EmitEvent("ExpertRoleSet", []string{expertAddr})
-	return shim.Success([]byte("set expert role success for: " + expertAddr))
-}
 
 // ========== 辅助方法 ==========
-// isAdmin 检查是否为管理员
-func (kc *KnowledgeContract) isAdmin(stub shim.CMStubInterface, addr string) bool {
-	roleBytes, err := stub.GetStateFromKeyByte("role_" + addr) // 修复参数错误
+// isAdminRole 根据传入的角色字符串判断是否为管理员（角色由业务侧传入）
+func (kc *KnowledgeContract) isAdminRole(roleStr string) bool {
+	if roleStr == "" {
+		return false
+	}
+	r, err := strconv.Atoi(roleStr)
 	if err != nil {
 		return false
 	}
-	role, err := strconv.Atoi(string(roleBytes))
-	if err != nil {
-		return false
-	}
-	return RoleType(role) == RoleAdmin
+	return RoleType(r) == RoleAdmin
 }
 
 // main 合约入口
