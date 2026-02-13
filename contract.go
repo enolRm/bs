@@ -2,9 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"strconv"
-	"time"
 
 	"chainmaker/pb/protogo"
 	"chainmaker/shim"
@@ -98,10 +98,11 @@ func (kc *KnowledgeContract) SubmitKnowledge(stub shim.CMStubInterface) protogo.
 	submitter := string(params["submitter"])
 	updateRecordHash := string(params["update_record_hash"]) // 首次提交为空
 	voteDurationStr := string(params["vote_duration_ms"])
+	timestampStr := string(params["timestamp_ms"])	// 时间戳（毫秒）必须由业务侧传入，合约不使用本地系统时间
 
 	// 参数校验
-	if id == "" || contentHash == "" || sourceCredential == "" || submitter == "" {
-		return shim.Error("params error: id/content_hash/source_credential/submitter must not empty")
+	if id == "" || contentHash == "" || sourceCredential == "" || submitter == "" || timestampStr == "" {
+		return shim.Error("params error: id/content_hash/source_credential/submitter/timestamp_ms must not empty")
 	}
 
 	// 检查知识ID是否已存在（替换HasStateFromKeyByte）
@@ -114,6 +115,12 @@ func (kc *KnowledgeContract) SubmitKnowledge(stub shim.CMStubInterface) protogo.
 		return shim.Error("knowledge id already exist")
 	}
 
+	// 解析时间戳
+	ts, err := strconv.ParseInt(timestampStr, 10, 64)
+	if err != nil || ts <= 0 {
+		return shim.Error("params error: timestamp_ms must be valid positive integer")
+	}
+
 	// 使用业务侧传入的投票周期（毫秒），若未传入使用默认72小时
 	var voteDurationMillis int64 = 72 * 3600 * 1000
 	if voteDurationStr != "" {
@@ -122,15 +129,14 @@ func (kc *KnowledgeContract) SubmitKnowledge(stub shim.CMStubInterface) protogo.
 		}
 	}
 
-	// 构建知识对象，并生成唯一的 verification id（包含时间戳）
-	now := time.Now().UnixMilli()
-	verificationID := "verify_" + id + "_" + strconv.FormatInt(now, 10)
+	// 构建知识对象，并生成唯一的 verification id（包含业务侧时间戳）
+	verificationID := "verify_" + id + "_" + strconv.FormatInt(ts, 10)
 	knowledge := &Knowledge{
 		ID:               id,
 		ContentHash:      contentHash,
 		SourceCredential: sourceCredential,
 		Submitter:        submitter,
-		Timestamp:        now,
+		Timestamp:        ts,
 		Status:           StatusPending,
 		UpdateRecordHash: updateRecordHash,
 		VerificationID:   verificationID, // 关联验证ID
@@ -146,14 +152,14 @@ func (kc *KnowledgeContract) SubmitKnowledge(stub shim.CMStubInterface) protogo.
 		return shim.Error("save knowledge failed: " + err.Error())
 	}
 
-	// 初始化验证投票（周期由业务侧传入）
-	err = kc.initVerificationVote(stub, knowledge.VerificationID, id, voteDurationMillis)
+	// 初始化验证投票（周期由业务侧传入），StartTime 使用业务侧传入的 timestamp
+	err = kc.initVerificationVote(stub, knowledge.VerificationID, id, ts, voteDurationMillis)
 	if err != nil {
 		return shim.Error("init verification vote failed: " + err.Error())
 	}
 
-	// 发送事件
-	stub.EmitEvent("KnowledgeSubmitted", []string{id, submitter, strconv.FormatInt(now, 10)})
+	// 发送事件（包含业务侧时间戳）
+	stub.EmitEvent("KnowledgeSubmitted", []string{id, submitter, timestampStr})
 
 	stub.Log("[submitKnowledge] success, id: " + id)
 	return shim.Success([]byte("submit knowledge success, id: " + id))
@@ -169,10 +175,11 @@ func (kc *KnowledgeContract) UpdateKnowledge(stub shim.CMStubInterface) protogo.
 	operatorRole := string(params["operator_role"])
 	newUpdateRecordHash := string(params["new_update_record_hash"])
 	voteDurationStr := string(params["vote_duration_ms"]) // 可选，更新后重新发起投票的时长（ms）
+	timestampStr := string(params["timestamp_ms"])        // 更新时间戳必须由业务侧提供
 
 	// 参数校验
-	if id == "" || newContentHash == "" || operator == "" {
-		return shim.Error("params error: id/new_content_hash/operator must not empty")
+	if id == "" || newContentHash == "" || operator == "" || timestampStr == ""{
+		return shim.Error("params error: id/new_content_hash/operator/timestampStr must not empty")
 	}
 
 	// 查询原有知识
@@ -203,13 +210,18 @@ func (kc *KnowledgeContract) UpdateKnowledge(stub shim.CMStubInterface) protogo.
 		knowledge.SourceCredential = newSourceCredential
 	}
 	knowledge.UpdateRecordHash = newUpdateRecordHash
-	knowledge.Timestamp = time.Now().UnixMilli() // 更新时间戳
+
+	// 解析时间戳
+	ts, err := strconv.ParseInt(timestampStr, 10, 64)
+	if err != nil || ts <= 0 {
+		return shim.Error("params error: timestamp_ms must be valid positive integer")
+	}
+	knowledge.Timestamp = ts
 
 	// 更新后需要重新发起验证投票
-	// 生成新的 verification id
+	// 生成新的 verification id（使用业务侧提供的 timestamp）
 	knowledge.Status = StatusPending // 更新后状态重置为待验证
-	now := time.Now().UnixMilli()
-	newVerifyID := "verify_" + id + "_" + strconv.FormatInt(now, 10)
+	newVerifyID := "verify_" + id + "_" + timestampStr
 	knowledge.VerificationID = newVerifyID
 
 	// 重新序列化存储
@@ -222,14 +234,14 @@ func (kc *KnowledgeContract) UpdateKnowledge(stub shim.CMStubInterface) protogo.
 		return shim.Error("update knowledge failed: " + err.Error())
 	}
 
-	// 初始化新的验证投票，使用业务侧传入的投票周期（若为空则使用默认72小时）
+	// 初始化新的验证投票，使用业务侧传入的投票周期（若为空则使用默认72小时）。StartTime 使用业务侧 timestamp
 	var voteDurationMillis int64 = 72 * 3600 * 1000
 	if voteDurationStr != "" {
 		if v, err := strconv.ParseInt(voteDurationStr, 10, 64); err == nil && v > 0 {
 			voteDurationMillis = v
 		}
 	}
-	if err := kc.initVerificationVote(stub, knowledge.VerificationID, id, voteDurationMillis); err != nil {
+	if err := kc.initVerificationVote(stub, knowledge.VerificationID, id, ts, voteDurationMillis); err != nil {
 		return shim.Error("init verification vote after update failed: " + err.Error())
 	}
 
@@ -264,8 +276,11 @@ func (kc *KnowledgeContract) QueryKnowledgeById(stub shim.CMStubInterface) proto
 
 // ========== 验证投票核心方法 ==========
 // initVerificationVote 初始化验证投票（72小时有效期）
-func (kc *KnowledgeContract) initVerificationVote(stub shim.CMStubInterface, verifyID, knowledgeID string, durationMillis int64) error {
-	now := time.Now().UnixMilli()
+func (kc *KnowledgeContract) initVerificationVote(stub shim.CMStubInterface, verifyID, knowledgeID string, startTimeMillis, durationMillis int64) error {
+	// startTimeMillis 必须由业务侧传入以保证确定性
+	if startTimeMillis <= 0 {
+		return fmt.Errorf("startTimeMillis must be positive")
+	}
 	if durationMillis <= 0 {
 		durationMillis = 72 * 3600 * 1000
 	}
@@ -275,8 +290,8 @@ func (kc *KnowledgeContract) initVerificationVote(stub shim.CMStubInterface, ver
 		TotalVotes:   0,
 		ApproveVotes: 0,
 		RejectVotes:  0,
-		StartTime:    now,
-		EndTime:      now + durationMillis,
+		StartTime:    startTimeMillis,
+		EndTime:      startTimeMillis + durationMillis,
 	}
 
 	// 序列化存储
@@ -310,10 +325,11 @@ func (kc *KnowledgeContract) CastVote(stub shim.CMStubInterface) protogo.Respons
 	voter := string(params["voter"])
 	voteTypeStr := string(params["vote_type"]) // 0:反对,1:同意
 	voterRoleStr := string(params["voter_role"]) // 传入角色: 0/1/2
+	currentTimeStr := string(params["current_time_ms"]) // 调用方提供当前时间（ms），合约不使用系统时间
 
 	// 参数校验
-	if verifyID == "" || voter == "" || voteTypeStr == "" {
-		return shim.Error("params error: verify_id/voter/vote_type must not empty")
+	if verifyID == "" || voter == "" || voteTypeStr == "" || currentTimeStr == "" {
+		return shim.Error("params error: verify_id/voter/vote_type/current_time_ms must not empty")
 	}
 	voteType, err := strconv.Atoi(voteTypeStr)
 	if err != nil || (voteType != 0 && voteType != 1) {
@@ -337,9 +353,11 @@ func (kc *KnowledgeContract) CastVote(stub shim.CMStubInterface) protogo.Respons
 		return shim.Error("unmarshal vote failed: " + err.Error())
 	}
 
-	// 检查投票时间
-	now := time.Now().UnixMilli()
-	if now < vote.StartTime || now > vote.EndTime {
+	currentTime, err := strconv.ParseInt(currentTimeStr, 10, 64)
+	if err != nil {
+		return shim.Error("params error: current_time_ms invalid")
+	}
+	if currentTime < vote.StartTime || currentTime > vote.EndTime {
 		return shim.Error("vote is not in valid time range")
 	}
 
@@ -408,8 +426,10 @@ func (kc *KnowledgeContract) CastVote(stub shim.CMStubInterface) protogo.Respons
 func (kc *KnowledgeContract) JudgeVerificationResult(stub shim.CMStubInterface) protogo.Response {
 	params := stub.GetArgs()
 	verifyID := string(params["verify_id"])
-	if verifyID == "" {
-		return shim.Error("params error: verify_id must not empty")
+	currentTimeStr := string(params["current_time_ms"]) // 调用方提供当前时间（ms）
+
+	if verifyID == "" || currentTimeStr == "" {
+		return shim.Error("params error: verify_id/current_time_ms must not empty")
 	}
 
 	// 获取投票信息
@@ -428,9 +448,12 @@ func (kc *KnowledgeContract) JudgeVerificationResult(stub shim.CMStubInterface) 
 		return shim.Error("unmarshal vote failed: " + err.Error())
 	}
 
-	// 检查投票是否结束
-	now := time.Now().UnixMilli()
-	if now < vote.EndTime {
+	// 检查投票是否结束（使用调用方提供的时间）
+	currentTime, err := strconv.ParseInt(currentTimeStr, 10, 64)
+	if err != nil {
+		return shim.Error("params error: current_time_ms invalid")
+	}
+	if currentTime < vote.EndTime {
 		return shim.Error("vote not finished yet")
 	}
 
