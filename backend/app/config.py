@@ -24,18 +24,6 @@ class Settings:
     # 数据库
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./knowledge.db")
 
-    # 区块链
-    WEB3_RPC_URL: str = os.getenv("WEB3_RPC_URL", "http://127.0.0.1:8545")
-    CONTRACT_ADDRESS: str | None = os.getenv("CONTRACT_ADDRESS")
-    # 默认指向 Hardhat 编译产物（可在 .env 中覆盖）
-    CONTRACT_ABI_PATH: str = os.getenv(
-        "CONTRACT_ABI_PATH",
-        "../contracts/artifacts/contracts/KnowledgeStorage.sol/KnowledgeStorage.json",
-    )
-    # 后端代签名账户（演示用：后端直接发交易；生产应改为前端钱包签名）
-    CHAIN_SENDER_ADDRESS: str | None = os.getenv("CHAIN_SENDER_ADDRESS")
-    CHAIN_SENDER_PRIVATE_KEY: str | None = os.getenv("CHAIN_SENDER_PRIVATE_KEY")
-
     # 向量库
     VECTOR_DB_DIR: str = os.getenv("VECTOR_DB_DIR", "./vector_store")
 

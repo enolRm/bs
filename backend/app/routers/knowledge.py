@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..config import settings
-from ..blockchain import get_blockchain_client
+
 from ..db import get_db
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
@@ -39,28 +39,6 @@ def create_knowledge(
     db.add(knowledge)
     db.commit()
     db.refresh(knowledge)
-
-    # 若配置了链上环境，则提交到链上并回写 chain_id
-    if (
-        settings.CONTRACT_ADDRESS
-        and settings.CHAIN_SENDER_ADDRESS
-        and settings.CHAIN_SENDER_PRIVATE_KEY
-    ):
-        try:
-            client = get_blockchain_client()
-            chain_id = client.submit_knowledge(
-                title=payload.title,
-                content_hash=content_hash,
-                source=payload.source or "",
-                from_address=settings.CHAIN_SENDER_ADDRESS,
-                private_key=settings.CHAIN_SENDER_PRIVATE_KEY,
-            )
-            knowledge.chain_id = chain_id
-            db.add(knowledge)
-            db.commit()
-            db.refresh(knowledge)
-        except Exception as e:
-            logger.warning("提交知识上链失败，本地已保存，chain_id 为空: %s", e)
 
     return knowledge
 
