@@ -1,3 +1,4 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,6 +11,9 @@ from .routers import verification as verification_router
 
 def create_app() -> FastAPI:
     app = FastAPI(title=settings.PROJECT_NAME)
+
+    # 配置日志
+    logging.basicConfig(level=logging.INFO)
 
     # 创建数据库表（演示环境可直接在启动时创建，生产建议使用 Alembic 迁移）
     Base.metadata.create_all(bind=engine)

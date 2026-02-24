@@ -91,3 +91,6 @@ cache/**
 *.bak
 *.tmp
 *.swp
+
+**/__pycache__/
+*.py[cod]

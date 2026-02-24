@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum as PyEnum
 
 from sqlalchemy import Column, Integer, String, DateTime, Enum, Text, ForeignKey
@@ -22,7 +22,7 @@ class Knowledge(Base):
     content_hash = Column(String(255), nullable=False)
     source = Column(String(255), nullable=True)
     submitter_address = Column(String(64), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     status = Column(Enum(KnowledgeStatus), default=KnowledgeStatus.PENDING)
 
 
@@ -33,5 +33,5 @@ class KnowledgeHistory(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     knowledge_id = Column(Integer, ForeignKey("knowledge.id"), nullable=False, index=True)
     content_hash = Column(String(255), nullable=False)  # 更新前的内容哈希
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
