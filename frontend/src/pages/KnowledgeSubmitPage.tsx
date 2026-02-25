@@ -5,6 +5,8 @@ export const KnowledgeSubmitPage: React.FC = () => {
   const [title, setTitle] = useState("");
   const [source, setSource] = useState("");
   const [content, setContent] = useState("");
+  const [voteDuration, setVoteDuration] = useState<number>(60);
+  const [voteUnit, setVoteUnit] = useState<string>("s");
   const [result, setResult] = useState<Knowledge | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,7 +16,13 @@ export const KnowledgeSubmitPage: React.FC = () => {
     setError(null);
     setResult(null);
     try {
-      const resp = await api.post<Knowledge>("/knowledge/", { title, content, source });
+      const resp = await api.post<Knowledge>("/knowledge/", { 
+        title, 
+        content, 
+        source,
+        vote_duration: voteDuration,
+        vote_unit: voteUnit
+      });
       setResult(resp.data);
     } catch (e: any) {
       setError(e?.response?.data?.detail || e?.message || "提交失败");
@@ -45,6 +53,31 @@ export const KnowledgeSubmitPage: React.FC = () => {
             placeholder="本地手册"
           />
         </label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <label>
+            投票时长
+            <input
+              type="number"
+              style={{ width: "100%", padding: 8, marginTop: 6 }}
+              value={voteDuration}
+              onChange={(e) => setVoteDuration(parseInt(e.target.value) || 0)}
+              min={1}
+            />
+          </label>
+          <label>
+            时长单位
+            <select
+              style={{ width: "100%", padding: 8, marginTop: 6 }}
+              value={voteUnit}
+              onChange={(e) => setVoteUnit(e.target.value)}
+            >
+              <option value="s">秒 (Seconds)</option>
+              <option value="m">分 (Minutes)</option>
+              <option value="h">时 (Hours)</option>
+              <option value="d">日 (Days)</option>
+            </select>
+          </label>
+        </div>
         <label>
           正文
           <textarea

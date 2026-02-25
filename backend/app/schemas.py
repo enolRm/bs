@@ -10,6 +10,8 @@ class KnowledgeCreate(BaseModel):
     title: str = Field(..., max_length=255)
     content: str
     source: Optional[str] = None
+    vote_duration: int = Field(60, description="投票时长数值")
+    vote_unit: str = Field("s", description="投票时长单位: s, m, h, d")
 
 
 class KnowledgeUpdate(BaseModel):
@@ -17,6 +19,8 @@ class KnowledgeUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=255)
     content: Optional[str] = None
     source: Optional[str] = None
+    vote_duration: Optional[int] = Field(None, description="投票时长数值")
+    vote_unit: Optional[str] = Field(None, description="投票时长单位: s, m, h, d")
 
 
 class KnowledgeHistoryOut(BaseModel):

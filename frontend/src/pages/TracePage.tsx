@@ -10,6 +10,8 @@ export const TracePage: React.FC = () => {
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
   const [editSource, setEditSource] = useState("");
+  const [voteDuration, setVoteDuration] = useState<number>(60);
+  const [voteUnit, setVoteUnit] = useState<string>("s");
   const [saving, setSaving] = useState(false);
 
   const loadList = async () => {
@@ -48,10 +50,23 @@ export const TracePage: React.FC = () => {
     setSaving(true);
     setError(null);
     try {
-      const payload: { title?: string; content?: string; source?: string } = {};
+      const payload: { 
+        title?: string; 
+        content?: string; 
+        source?: string;
+        vote_duration?: number;
+        vote_unit?: string;
+      } = {};
       if (editTitle !== selected.title) payload.title = editTitle;
       if (editContent !== selected.content) payload.content = editContent;
       if (editSource !== (selected.source || "")) payload.source = editSource;
+      
+      // 只要内容有变更，就带上投票时长（因为后端逻辑是 hash 变更才触发链上更新）
+      if (payload.title || payload.content || payload.source) {
+        payload.vote_duration = voteDuration;
+        payload.vote_unit = voteUnit;
+      }
+
       if (Object.keys(payload).length === 0) {
         setSaving(false);
         return;
@@ -126,15 +141,40 @@ export const TracePage: React.FC = () => {
                     onChange={(e) => setEditTitle(e.target.value)}
                   />
                 </label>
-                <label style={{ display: "block", marginBottom: 4 }}>
+                <label style={{ display: "block", marginTop: 10 }}>
                   来源
                   <input
-                    style={{ width: "100%", padding: 8, marginTop: 4 }}
+                    style={{ width: "100%", padding: 6, marginTop: 4 }}
                     value={editSource}
                     onChange={(e) => setEditSource(e.target.value)}
                   />
                 </label>
-                <label style={{ display: "block", marginBottom: 4 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 10 }}>
+                  <label>
+                    投票时长
+                    <input
+                      type="number"
+                      style={{ width: "100%", padding: 6, marginTop: 4 }}
+                      value={voteDuration}
+                      onChange={(e) => setVoteDuration(parseInt(e.target.value) || 0)}
+                      min={1}
+                    />
+                  </label>
+                  <label>
+                    时长单位
+                    <select
+                      style={{ width: "100%", padding: 6, marginTop: 4 }}
+                      value={voteUnit}
+                      onChange={(e) => setVoteUnit(e.target.value)}
+                    >
+                      <option value="s">秒 (Seconds)</option>
+                      <option value="m">分 (Minutes)</option>
+                      <option value="h">时 (Hours)</option>
+                      <option value="d">日 (Days)</option>
+                    </select>
+                  </label>
+                </div>
+                <label style={{ display: "block", marginTop: 10 }}>
                   正文
                   <textarea
                     style={{ width: "100%", padding: 8, marginTop: 4, minHeight: 120 }}

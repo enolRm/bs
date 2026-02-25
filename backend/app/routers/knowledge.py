@@ -50,6 +50,11 @@ def create_knowledge(
         and settings.TBAAS_SECRET_KEY
     ):
         try:
+            # 计算投票时长（毫秒）
+            unit_map = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+            duration_sec = payload.vote_duration * unit_map.get(payload.vote_unit, 1)
+            duration_ms = duration_sec * 1000
+
             client = get_blockchain_client()
             result = client.submit_knowledge(
                 id=str(knowledge.id),
@@ -57,13 +62,13 @@ def create_knowledge(
                 source_credential=payload.source or "",
                 submitter="TODO: get actual submitter from auth context",  # 替换为实际提交者
                 timestamp_ms=int(knowledge.created_at.replace(tzinfo=timezone.utc).timestamp() * 1000),
-                vote_duration_ms=60000,     # s
+                vote_duration_ms=duration_ms,
             )
             knowledge.chain_id = knowledge.id   # 知识的链上id和自身id一致
             db.commit()
             
-            # 开启定时器，默认300s后检查验证结果，时长可设置
-            schedule_verification(knowledge.id, 62)     # ms
+            # 开启定时器，默认在投票结束后稍晚一点检查验证结果（秒）
+            schedule_verification(knowledge.id, duration_sec + 2)
         except Exception as e:
             logger.warning("提交知识上链失败，本地已保存，error: %s", e)
 
@@ -114,6 +119,13 @@ def update_knowledge(
         # If the hash has changed, we need to attempt a blockchain update
         if settings.TBAAS_SECRET_ID and settings.TBAAS_SECRET_KEY:
             try:
+                # 计算投票时长（毫秒）
+                unit_map = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+                v_duration = payload.vote_duration if payload.vote_duration is not None else 60
+                v_unit = payload.vote_unit if payload.vote_unit is not None else "s"
+                duration_sec = v_duration * unit_map.get(v_unit, 1)
+                duration_ms = duration_sec * 1000
+
                 client = get_blockchain_client()
                 client.update_knowledge(
                     id=str(knowledge_id),
@@ -123,6 +135,7 @@ def update_knowledge(
                     operator_role="2",  # Placeholder
                     new_update_record_hash=hashlib.sha256(new_knowledge_hash.encode("utf-8")).hexdigest(),  # Placeholder
                     timestamp_ms=int(time.time() * 1000),
+                    vote_duration_ms=duration_ms,
                 )
                 # If blockchain update is successful, commit local changes
                 knowledge.content_hash = new_knowledge_hash # Update local hash
@@ -136,8 +149,8 @@ def update_knowledge(
                 db.commit()
                 db.refresh(knowledge)
                 
-                # 开启新的定时器，5分钟后检查验证结果
-                schedule_verification(knowledge.id)
+                # 开启新的定时器，在投票结束后稍晚一点检查验证结果（秒）
+                schedule_verification(knowledge.id, duration_sec + 2)
                 
                 return knowledge
             except Exception as e:
