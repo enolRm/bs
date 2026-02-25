@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { api, Knowledge, KnowledgeHistoryItem } from "../api";
 
+type PendingAction = "vote_yes" | "vote_no" | null;
+
 export const TracePage: React.FC = () => {
   const [items, setItems] = useState<Knowledge[]>([]);
   const [selected, setSelected] = useState<Knowledge | null>(null);
@@ -14,9 +16,13 @@ export const TracePage: React.FC = () => {
   const [voteUnit, setVoteUnit] = useState<string>("s");
   const [saving, setSaving] = useState(false);
 
+  const [pending, setPending] = useState<{ id: number; chainId: number | null; action: PendingAction } | null>(null);
+  const [lastResult, setLastResult] = useState<{ message: string; tx_hash?: string } | null>(null);
+
   const loadList = async () => {
     setLoading(true);
     setError(null);
+    setLastResult(null);
     try {
       const resp = await api.get<Knowledge[]>("/knowledge/");
       setItems(resp.data);
@@ -44,6 +50,42 @@ export const TracePage: React.FC = () => {
       .then((r) => setHistory(r.data))
       .catch(() => setHistory([]));
   }, [selected]);
+
+  const vote = async (chainId: number, support: boolean) => {
+    setError(null);
+    setLastResult(null);
+    setPending({ id: 0, chainId, action: support ? "vote_yes" : "vote_no" });
+    try {
+      const resp = await api.post<{ tx_hash: string }>(`/verification/${chainId}/vote`, { support });
+      setLastResult({ message: support ? "同意投票已上链" : "反对投票已上链", tx_hash: resp.data.tx_hash });
+      await loadList();
+      // 更新当前选中的 item 状态
+      if (selected) {
+        const updatedResp = await api.get<Knowledge>(`/knowledge/${selected.id}`);
+        setSelected(updatedResp.data);
+      }
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || e?.message || "链上投票失败");
+    } finally {
+      setPending(null);
+    }
+  };
+
+  const isPendingAction = (k: Knowledge, action: PendingAction) =>
+    pending?.chainId === k.chain_id && pending?.action === action;
+
+  const formatDateTime = (dtStr: string | null) => {
+    if (!dtStr) return "";
+    // 确保时间字符串包含 Z 以便解析为 UTC，除非已经包含了时区信息
+    const isoStr = dtStr.includes("Z") || dtStr.includes("+") ? dtStr : dtStr + "Z";
+    return new Date(isoStr).toLocaleString();
+  };
+
+  const isVoteExpired = (deadline: string | null) => {
+    if (!deadline) return false;
+    const isoStr = deadline.includes("Z") || deadline.includes("+") ? deadline : deadline + "Z";
+    return new Date(isoStr) < new Date();
+  };
 
   const saveUpdate = async () => {
     if (!selected) return;
@@ -88,9 +130,9 @@ export const TracePage: React.FC = () => {
 
   return (
     <div>
-      <h2>知识追溯与更新</h2>
+      <h2>知识列表</h2>
       <p style={{ color: "#666" }}>
-        选择一条知识可查看详情与历史哈希记录；编辑后保存会写入更新历史。
+        知识列表，可点击查看知识详情与历史记录，支持提交更新与投票验证。
       </p>
 
       <div style={{ marginBottom: 12 }}>
@@ -100,6 +142,12 @@ export const TracePage: React.FC = () => {
       </div>
 
       {error ? <div style={{ color: "crimson", marginBottom: 12 }}>错误：{error}</div> : null}
+      {lastResult ? (
+        <div style={{ marginBottom: 12, padding: 10, background: "#e8f5e9", borderRadius: 6 }}>
+          {lastResult.message}
+          {lastResult.tx_hash ? <div style={{ marginTop: 4, fontSize: 12, wordBreak: "break-all" }}>tx: {lastResult.tx_hash}</div> : null}
+        </div>
+      ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16 }}>
         <div style={{ border: "1px solid #ddd", borderRadius: 6, padding: 12, background: "#fafafa" }}>
@@ -128,9 +176,54 @@ export const TracePage: React.FC = () => {
         <div style={{ border: "1px solid #ddd", borderRadius: 6, padding: 12, background: "#fff" }}>
           {selected ? (
             <>
-              <div style={{ fontWeight: 600, marginBottom: 8 }}>
-                详情 #{selected.id} | 状态：{selected.status}
-                {selected.chain_id != null ? ` | 链上 ID：${selected.chain_id}` : ""}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 16 }}>
+                    ID #{selected.id}
+                  </div>
+                  <div style={{ color: "#666", marginTop: 4 }}>
+                  状态：{selected.status === "pending" ? "待投票" : selected.status === "verified" 
+                    ? "已通过" : selected.status === "rejected" ? "已拒绝" : selected.status}
+                  {selected.status === "pending" && selected.voting_deadline && (
+                    <span style={{ marginLeft: 12, fontSize: 13, color: isVoteExpired(selected.voting_deadline) ? "#f44336" : "#1976d2" }}>
+                      投票截止时间：{formatDateTime(selected.voting_deadline)} 
+                      {isVoteExpired(selected.voting_deadline) ? " (已截止)" : ""}
+                    </span>
+                  )}
+                  </div>
+                </div>
+                {selected.status === "pending" && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => selected.chain_id != null && vote(selected.chain_id!, true)}
+                      disabled={!!pending || isVoteExpired(selected.voting_deadline) || selected.chain_id == null}
+                      style={{ 
+                        padding: "6px 12px", 
+                        background: (isVoteExpired(selected.voting_deadline) || selected.chain_id == null) ? "#bdbdbd" : "#4caf50", 
+                        color: "#fff", 
+                        border: "none", 
+                        borderRadius: 4, 
+                        cursor: (isVoteExpired(selected.voting_deadline) || selected.chain_id == null) ? "not-allowed" : "pointer" 
+                      }}
+                    >
+                      {isPendingAction(selected, "vote_yes") ? "提交中..." : "同意"}
+                    </button>
+                    <button
+                      onClick={() => selected.chain_id != null && vote(selected.chain_id!, false)}
+                      disabled={!!pending || isVoteExpired(selected.voting_deadline) || selected.chain_id == null}
+                      style={{ 
+                        padding: "6px 12px", 
+                        background: (isVoteExpired(selected.voting_deadline) || selected.chain_id == null) ? "#bdbdbd" : "#f44336", 
+                        color: "#fff", 
+                        border: "none", 
+                        borderRadius: 4, 
+                        cursor: (isVoteExpired(selected.voting_deadline) || selected.chain_id == null) ? "not-allowed" : "pointer" 
+                      }}
+                    >
+                      {isPendingAction(selected, "vote_no") ? "提交中..." : "反对"}
+                    </button>
+                  </div>
+                )}
               </div>
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: "block", marginBottom: 4 }}>

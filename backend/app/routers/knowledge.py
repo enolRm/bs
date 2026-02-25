@@ -1,7 +1,7 @@
 import hashlib
 import logging
 import time
-from datetime import timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -34,12 +34,17 @@ def create_knowledge(
     """
     knowledge_hash = _calc_knowledge_hash(payload.title, payload.source, payload.content)
 
+    # 计算投票时长（秒）
+    unit_map = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+    duration_sec = payload.vote_duration * unit_map.get(payload.vote_unit, 1)
+
     knowledge = models.Knowledge(
         title=payload.title,
         content=payload.content,
         content_hash=knowledge_hash,
         source=payload.source,
         status=models.KnowledgeStatus.PENDING,
+        voting_deadline=datetime.now(timezone.utc) + timedelta(seconds=duration_sec)
     )
     db.add(knowledge)
     db.commit()
@@ -51,8 +56,6 @@ def create_knowledge(
     ):
         try:
             # 计算投票时长（毫秒）
-            unit_map = {"s": 1, "m": 60, "h": 3600, "d": 86400}
-            duration_sec = payload.vote_duration * unit_map.get(payload.vote_unit, 1)
             duration_ms = duration_sec * 1000
 
             client = get_blockchain_client()
@@ -140,6 +143,7 @@ def update_knowledge(
                 # If blockchain update is successful, commit local changes
                 knowledge.content_hash = new_knowledge_hash # Update local hash
                 knowledge.status = models.KnowledgeStatus.PENDING   # 状态变更为待验证
+                knowledge.voting_deadline = datetime.now(timezone.utc) + timedelta(seconds=duration_sec)
                 db.add(
                     models.KnowledgeHistory(
                         knowledge_id=knowledge_id,

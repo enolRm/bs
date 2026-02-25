@@ -16,6 +16,7 @@ export type Knowledge = {
   source: string | null;
   submitter_address: string | null;
   created_at: string;
+  voting_deadline: string | null;
   status: "pending" | "verified" | "rejected";
 };
 

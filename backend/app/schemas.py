@@ -40,6 +40,7 @@ class KnowledgeOut(BaseModel):
     source: Optional[str]
     submitter_address: Optional[str]
     created_at: datetime
+    voting_deadline: Optional[datetime]
     status: KnowledgeStatus
 
     class Config:
