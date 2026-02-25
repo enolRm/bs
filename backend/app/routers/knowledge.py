@@ -139,6 +139,7 @@ def update_knowledge(
                 )
                 # If blockchain update is successful, commit local changes
                 knowledge.content_hash = new_knowledge_hash # Update local hash
+                knowledge.status = models.KnowledgeStatus.PENDING   # 状态变更为待验证
                 db.add(
                     models.KnowledgeHistory(
                         knowledge_id=knowledge_id,
