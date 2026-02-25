@@ -3,7 +3,7 @@ import { api, Knowledge } from "../api";
 
 export const KnowledgeSubmitPage: React.FC = () => {
   const [title, setTitle] = useState("");
-  const [source, setSource] = useState("本地手册");
+  const [source, setSource] = useState("");
   const [content, setContent] = useState("");
   const [result, setResult] = useState<Knowledge | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,6 +42,7 @@ export const KnowledgeSubmitPage: React.FC = () => {
             style={{ width: "100%", padding: 8, marginTop: 6 }}
             value={source}
             onChange={(e) => setSource(e.target.value)}
+            placeholder="本地手册"
           />
         </label>
         <label>

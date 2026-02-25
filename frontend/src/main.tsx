@@ -19,7 +19,7 @@ const App: React.FC = () => {
             知识验证
           </Link>
           <Link style={{ marginRight: 12 }} to="/qa">智能问答</Link>
-          <Link to="/trace">知识追溯</Link>
+          <Link to="/trace">知识更新与追溯</Link>
         </nav>
         <Routes>
           <Route path="/" element={<QAPage />} />

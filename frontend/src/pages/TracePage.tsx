@@ -75,7 +75,7 @@ export const TracePage: React.FC = () => {
     <div>
       <h2>知识追溯与更新</h2>
       <p style={{ color: "#666" }}>
-        选择一条知识可查看详情与历史哈希记录；编辑后保存会写入更新历史（当前内容哈希入历史再更新）。
+        选择一条知识可查看详情与历史哈希记录；编辑后保存会写入更新历史。
       </p>
 
       <div style={{ marginBottom: 12 }}>
