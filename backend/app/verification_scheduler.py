@@ -2,7 +2,6 @@ import threading
 import time
 import logging
 import json
-import base64
 from typing import Dict, Optional
 
 from sqlalchemy.orm import Session
@@ -67,7 +66,7 @@ def _run_verification_task(knowledge_id: int):
 
 def verify_knowledge_logic(db: Session, knowledge_id: int):
     """
-    核心验证逻辑，复用自原有的 finalize_knowledge_onchain
+    核心验证逻辑
     """
     if not settings.TBAAS_SECRET_ID or not settings.TBAAS_SECRET_KEY:
         logger.warning("未配置 TBAAS_SECRET_ID / TBAAS_SECRET_KEY，无法进行链上验证。")
@@ -78,9 +77,7 @@ def verify_knowledge_logic(db: Session, knowledge_id: int):
         logger.warning(f"知识 {knowledge_id} 不存在，跳过验证。")
         return
     
-    # 如果状态已经不是 PENDING，可能已经被处理过，或者是更新后的新版本
-    # 这里我们只处理 PENDING 状态，或者根据需求处理 REJECTED
-    # 但如果是更新操作触发的定时器，状态应该是 PENDING
+    # 这里我们默认处理 PENDING 状态（后续根据需求处理 REJECTED）
     if knowledge.status == KnowledgeStatus.VERIFIED:
         logger.info(f"知识 {knowledge_id} 已经是 VERIFIED 状态，跳过验证。")
         return
@@ -94,9 +91,8 @@ def verify_knowledge_logic(db: Session, knowledge_id: int):
 
         # 查询链上知识获取 verify_id
         # 注意：chain_id 可能是字符串或数字，根据现有代码它是 str(knowledge.id)
-        chain_knowledge_b64 = client.query_knowledge_by_id(str(knowledge.chain_id))
-        chain_knowledge_decoded = base64.b64decode(chain_knowledge_b64).decode('utf-8')
-        chain_knowledge = json.loads(chain_knowledge_decoded)
+        chain_knowledge_str = client.query_knowledge_by_id(str(knowledge.chain_id))
+        chain_knowledge = json.loads(chain_knowledge_str)
         verify_id = chain_knowledge.get("verification_id")
         
         if not verify_id:

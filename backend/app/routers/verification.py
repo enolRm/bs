@@ -1,5 +1,4 @@
 import json
-import base64
 import logging
 import time
 from typing import List
@@ -124,9 +123,8 @@ def vote_knowledge_onchain(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识不存在或未上链")
 
     # 查询链上知识获取 verify_id
-    chain_knowledge_b64 = client.query_knowledge_by_id(str(knowledge.chain_id))
-    chain_knowledge_decoded = base64.b64decode(chain_knowledge_b64).decode('utf-8')
-    chain_knowledge = json.loads(chain_knowledge_decoded)
+    chain_knowledge_str = client.query_knowledge_by_id(str(knowledge.chain_id))
+    chain_knowledge = json.loads(chain_knowledge_str)
     verify_id = chain_knowledge.get("verification_id")
     if not verify_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无法获取链上知识的验证ID")

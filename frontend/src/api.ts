@@ -9,7 +9,7 @@ export const api = axios.create({
 
 export type Knowledge = {
   id: number;
-  chain_id: number | null;
+  chain_id: string | null;
   title: string;
   content: string;
   content_hash: string;

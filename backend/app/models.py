@@ -16,7 +16,7 @@ class Knowledge(Base):
     __tablename__ = "knowledge"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    chain_id = Column(Integer, index=True, nullable=True)  # 对应链上 id
+    chain_id = Column(String(255), index=True, nullable=True)  # 对应链上 id
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=False)
     content_hash = Column(String(255), nullable=False)

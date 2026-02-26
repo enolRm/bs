@@ -101,11 +101,11 @@ export const KnowledgeSubmitPage: React.FC = () => {
           <div style={{ background: "#f6f6f6", padding: 12, borderRadius: 6 }}>
             <div>已提交：ID = {result.id}</div>
             {result.chain_id != null ? (
-              <div>链上 ID = {result.chain_id}（可在验证页进行链上投票）</div>
+              <div>链上 ID = {result.chain_id}（可在知识列表页进行链上投票）</div>
             ) : (
-              <div style={{ color: "#666" }}>未上链（未配置链或上链失败，仅本地保存）</div>
+              <div style={{ color: "#666" }}>未上链（未配置链或上链失败）</div>
             )}
-            <div>状态：{result.status}</div>
+            <div>状态："待投票"</div>
             <div>哈希：{result.content_hash}</div>
           </div>
         ) : null}

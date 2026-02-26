@@ -16,7 +16,7 @@ export const TracePage: React.FC = () => {
   const [voteUnit, setVoteUnit] = useState<string>("s");
   const [saving, setSaving] = useState(false);
 
-  const [pending, setPending] = useState<{ id: number; chainId: number | null; action: PendingAction } | null>(null);
+  const [pending, setPending] = useState<{ id: number; chainId: string | null; action: PendingAction } | null>(null);
   const [lastResult, setLastResult] = useState<{ message: string; tx_hash?: string } | null>(null);
 
   const loadList = async () => {
@@ -51,12 +51,14 @@ export const TracePage: React.FC = () => {
       .catch(() => setHistory([]));
   }, [selected]);
 
-  const vote = async (chainId: number, support: boolean) => {
+  const vote = async (knowledgeId: number, support: boolean) => {
     setError(null);
     setLastResult(null);
-    setPending({ id: 0, chainId, action: support ? "vote_yes" : "vote_no" });
+    // 注意：这里为了兼容性，pending 里的 chainId 我们暂时存为 string 或 null，
+    // 但 API 调用我们改用 knowledgeId (int)
+    setPending({ id: knowledgeId, chainId: selected?.chain_id || null, action: support ? "vote_yes" : "vote_no" });
     try {
-      const resp = await api.post<{ tx_hash: string }>(`/verification/${chainId}/vote`, { support });
+      const resp = await api.post<{ tx_hash: string }>(`/verification/${knowledgeId}/vote`, { support });
       setLastResult({ message: support ? "同意投票已上链" : "反对投票已上链", tx_hash: resp.data.tx_hash });
       await loadList();
       // 更新当前选中的 item 状态
@@ -72,7 +74,7 @@ export const TracePage: React.FC = () => {
   };
 
   const isPendingAction = (k: Knowledge, action: PendingAction) =>
-    pending?.chainId === k.chain_id && pending?.action === action;
+    pending?.id === k.id && pending?.action === action;
 
   const formatDateTime = (dtStr: string | null) => {
     if (!dtStr) return "";
@@ -179,7 +181,8 @@ export const TracePage: React.FC = () => {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 16 }}>
-                    ID #{selected.id}
+                    ID #{selected.id} | 
+                    {selected.chain_id ? ` 链上ID ${selected.chain_id}` : "未上链"}
                   </div>
                   <div style={{ color: "#666", marginTop: 4 }}>
                   状态：{selected.status === "pending" ? "待投票" : selected.status === "verified" 
@@ -195,7 +198,7 @@ export const TracePage: React.FC = () => {
                 {selected.status === "pending" && (
                   <div style={{ display: "flex", gap: 8 }}>
                     <button
-                      onClick={() => selected.chain_id != null && vote(selected.chain_id!, true)}
+                      onClick={() => vote(selected.id, true)}
                       disabled={!!pending || isVoteExpired(selected.voting_deadline) || selected.chain_id == null}
                       style={{ 
                         padding: "6px 12px", 
@@ -209,7 +212,7 @@ export const TracePage: React.FC = () => {
                       {isPendingAction(selected, "vote_yes") ? "提交中..." : "同意"}
                     </button>
                     <button
-                      onClick={() => selected.chain_id != null && vote(selected.chain_id!, false)}
+                      onClick={() => vote(selected.id, false)}
                       disabled={!!pending || isVoteExpired(selected.voting_deadline) || selected.chain_id == null}
                       style={{ 
                         padding: "6px 12px", 

@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 from functools import lru_cache
@@ -26,7 +27,16 @@ class BlockchainClient:
         clientProfile.httpProfile = httpProfile
         self.client = tbaas_client.TbaasClient(cred, "ap-beijing", clientProfile)
 
-    def _invoke_contract(self, func_name: str, func_param: Dict[str, Any]) -> Dict[str, Any]:
+    def _decode_result(self, result: str) -> str:
+        if not result:
+            return ""
+        try:
+            return base64.b64decode(result).decode("utf-8")
+        except Exception as e:
+            logger.error(f"Error decoding blockchain result: {e}, original result: {result}")
+            return result
+
+    def _invoke_contract(self, func_name: str, func_param: Dict[str, Any]) -> Any:
         try:
             req = models.InvokeChainMakerDemoContractRequest()
             req.ClusterId = settings.TBAAS_CLUSTER_ID
@@ -66,9 +76,9 @@ class BlockchainClient:
         if vote_duration_ms > 0:
             func_param["vote_duration_ms"] = str(vote_duration_ms)
         resp = self._invoke_contract("submitKnowledge", func_param)
-        result = resp.Result.Result
-        logger.info("提交知识上链成功, result: %s", str(result))
-        return str(result)
+        result = self._decode_result(resp.Result.Result)
+        logger.info("提交知识上链成功, result: %s", result)
+        return result
 
     def update_knowledge(
         self,
@@ -93,16 +103,16 @@ class BlockchainClient:
         if vote_duration_ms > 0:
             func_param["vote_duration_ms"] = str(vote_duration_ms)
         resp = self._invoke_contract("updateKnowledge", func_param)
-        result = resp.Result.Result
-        logger.info("更新知识上链成功, result: %s", str(result))
-        return str(result)
+        result = self._decode_result(resp.Result.Result)
+        logger.info("更新知识上链成功, result: %s", result)
+        return result
 
     def query_knowledge_by_id(self, id: str) -> str:
         func_param = {"id": id}
         resp = self._invoke_contract("queryKnowledgeById", func_param)
-        result = resp.Result.Result
-        logger.info("查询链上知识成功, result: %s", str(result))
-        return str(result)
+        result = self._decode_result(resp.Result.Result)
+        logger.info("查询链上知识成功, result: %s", result)
+        return result
 
     def cast_vote(
         self,
@@ -120,9 +130,9 @@ class BlockchainClient:
             "current_time_ms": str(current_time_ms),
         }
         resp = self._invoke_contract("castVote", func_param)
-        result = resp.Result.Result
-        logger.info("投票上链成功, result: %s", str(result))
-        return str(result)
+        result = self._decode_result(resp.Result.Result)
+        logger.info("投票上链成功, result: %s", result)
+        return result
 
     def judge_verification_result(
         self,
@@ -134,9 +144,9 @@ class BlockchainClient:
             "current_time_ms": str(current_time_ms),
         }
         resp = self._invoke_contract("judgeVerificationResult", func_param)
-        result = resp.Result.Result
-        logger.info("判断验证结果上链成功, result: %s", str(result))
-        return str(result)
+        result = self._decode_result(resp.Result.Result)
+        logger.info("判断验证结果上链成功, result: %s", result)
+        return result
 
 @lru_cache
 def get_blockchain_client() -> BlockchainClient:

@@ -47,8 +47,8 @@ def create_knowledge(
         voting_deadline=datetime.now(timezone.utc) + timedelta(seconds=duration_sec)
     )
     db.add(knowledge)
-    db.commit()
-    db.refresh(knowledge)
+    # 使用 flush 获取 ID 但不提交事务
+    db.flush()
 
     if (
         settings.TBAAS_SECRET_ID
@@ -60,21 +60,27 @@ def create_knowledge(
 
             client = get_blockchain_client()
             result = client.submit_knowledge(
-                id=str(knowledge.id),
+                id=str(knowledge.id)+"-"+knowledge_hash[:6],   # 设置链上知识ID，为避免冲突，在本地id后添加哈希的前6位
                 content_hash=knowledge_hash,
                 source_credential=payload.source or "",
                 submitter="TODO: get actual submitter from auth context",  # 替换为实际提交者
-                timestamp_ms=int(knowledge.created_at.replace(tzinfo=timezone.utc).timestamp() * 1000),
+                timestamp_ms=int(knowledge.created_at.timestamp() * 1000),
                 vote_duration_ms=duration_ms,
             )
-            knowledge.chain_id = knowledge.id   # 知识的链上id和自身id一致
-            db.commit()
+            knowledge.chain_id = str(knowledge.id)+"-"+knowledge_hash[:6]   # 设置本地数据库的chain_id为链上id
             
             # 开启定时器，默认在投票结束后稍晚一点检查验证结果（秒）
             schedule_verification(knowledge.id, duration_sec + 2)
         except Exception as e:
-            logger.warning("提交知识上链失败，本地已保存，error: %s", e)
+            db.rollback()
+            logger.error("提交知识上链失败，error: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"提交知识失败（上链异常）: {str(e)}"
+            )
 
+    db.commit()
+    db.refresh(knowledge)
     return knowledge
 
 
@@ -131,12 +137,12 @@ def update_knowledge(
 
                 client = get_blockchain_client()
                 client.update_knowledge(
-                    id=str(knowledge_id),
+                    id=str(knowledge.chain_id),
                     new_content_hash=new_knowledge_hash, # Use the new combined hash
                     new_source_credential=knowledge.source or "",
                     operator="system_operator",  # Placeholder
                     operator_role="2",  # Placeholder
-                    new_update_record_hash=hashlib.sha256(new_knowledge_hash.encode("utf-8")).hexdigest(),  # Placeholder
+                    new_update_record_hash=old_knowledge_hash, # Use old hash for history tracing
                     timestamp_ms=int(time.time() * 1000),
                     vote_duration_ms=duration_ms,
                 )

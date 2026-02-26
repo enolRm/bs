@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .models import KnowledgeStatus
 
@@ -33,7 +33,7 @@ class KnowledgeHistoryOut(BaseModel):
 
 class KnowledgeOut(BaseModel):
     id: int
-    chain_id: Optional[int]
+    chain_id: Optional[Union[str, int]]
     title: str
     content: str
     content_hash: str
@@ -42,6 +42,13 @@ class KnowledgeOut(BaseModel):
     created_at: datetime
     voting_deadline: Optional[datetime]
     status: KnowledgeStatus
+
+    @field_validator("chain_id", mode="before")
+    @classmethod
+    def convert_chain_id_to_str(cls, v):
+        if v is None:
+            return None
+        return str(v)
 
     class Config:
         from_attributes = True
