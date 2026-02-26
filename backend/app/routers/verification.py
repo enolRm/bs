@@ -40,19 +40,14 @@ def vote_knowledge_onchain(
     voter_role = int(body.get("voter_role", 0)) # 0: Normal, 1: Expert, 2: Admin
 
     client = get_blockchain_client()
-    # 需要先查询知识获取 verify_id
+    # 获取数据库中的 verify_id
     knowledge = db.query(Knowledge).filter(Knowledge.id == knowledge_id).first()
     if not knowledge or not knowledge.chain_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识不存在或未上链")
 
-    # 查询链上知识获取 verify_id
-    chain_knowledge_str = client.query_knowledge_by_id(str(knowledge.chain_id))
-    chain_knowledge = json.loads(chain_knowledge_str)
-    verify_id = chain_knowledge.get("verification_id")
+    verify_id = knowledge.verification_id
     if not verify_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无法获取链上知识的验证ID")
-
-    time.sleep(1)  # 等待1秒
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="无法获取知识的验证ID")
 
     try:
         tx_hash = client.cast_vote(

@@ -50,6 +50,7 @@ class KnowledgeOut(BaseModel):
     created_at: datetime
     voting_deadline: Optional[datetime]
     status: KnowledgeStatus
+    verification_id: Optional[str] = None
 
     @field_validator("chain_id", mode="before")
     @classmethod

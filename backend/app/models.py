@@ -25,6 +25,7 @@ class Knowledge(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     voting_deadline = Column(DateTime(timezone=True), nullable=True)  # 投票截止时间
     status = Column(Enum(KnowledgeStatus), default=KnowledgeStatus.PENDING)
+    verification_id = Column(String(255), nullable=True)  # 关联验证ID
 
 
 class KnowledgeHistory(Base):

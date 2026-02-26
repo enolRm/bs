@@ -89,14 +89,11 @@ def verify_knowledge_logic(db: Session, knowledge_id: int):
     try:
         client = get_blockchain_client()
 
-        # 查询链上知识获取 verify_id
-        # 注意：chain_id 可能是字符串或数字，根据现有代码它是 str(knowledge.id)
-        chain_knowledge_str = client.query_knowledge_by_id(str(knowledge.chain_id))
-        chain_knowledge = json.loads(chain_knowledge_str)
-        verify_id = chain_knowledge.get("verification_id")
+        # 从数据库获取 verify_id
+        verify_id = knowledge.verification_id
         
         if not verify_id:
-            logger.warning(f"知识 {knowledge_id} 无法获取链上验证ID。")
+            logger.warning(f"知识 {knowledge_id} 数据库中缺少验证ID。")
             return
 
         # 调用链上合约判断定稿结果

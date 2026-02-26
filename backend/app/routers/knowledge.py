@@ -59,15 +59,20 @@ def create_knowledge(
             duration_ms = duration_sec * 1000
 
             client = get_blockchain_client()
+            chain_id = str(knowledge.id)+"-"+knowledge_hash[:6]
+            timestamp_ms = int(knowledge.created_at.timestamp() * 1000)
+            
             result = client.submit_knowledge(
-                id=str(knowledge.id)+"-"+knowledge_hash[:6],   # 设置链上知识ID，为避免冲突，在本地id后添加哈希的前6位
+                id=chain_id,   # 设置链上知识ID，为避免冲突，在本地id后添加哈希的前6位
                 content_hash=knowledge_hash,
                 source_credential=payload.source or "",
                 submitter="TODO: get actual submitter from auth context",  # 替换为实际提交者
-                timestamp_ms=int(knowledge.created_at.timestamp() * 1000),
+                timestamp_ms=timestamp_ms,
                 vote_duration_ms=duration_ms,
             )
-            knowledge.chain_id = str(knowledge.id)+"-"+knowledge_hash[:6]   # 设置本地数据库的chain_id为链上id
+            knowledge.chain_id = chain_id   # 设置本地数据库的chain_id为链上id
+            # 根据合约规则生成并保存 verification_id
+            knowledge.verification_id = f"verify_{chain_id}_{timestamp_ms}"
             
             # 开启定时器，默认在投票结束后稍晚一点检查验证结果（秒）
             schedule_verification(knowledge.id, duration_sec + 2)
@@ -141,6 +146,7 @@ def update_knowledge(
                 duration_ms = duration_sec * 1000
 
                 operator = "system_operator" # Placeholder
+                timestamp_ms = int(time.time() * 1000)
 
                 client = get_blockchain_client()
                 client.update_knowledge(
@@ -150,13 +156,17 @@ def update_knowledge(
                     operator=operator,
                     operator_role="2",  # Placeholder
                     new_update_record_hash=old_knowledge_hash, # Use old hash for history tracing
-                    timestamp_ms=int(time.time() * 1000),
+                    timestamp_ms=timestamp_ms,
                     vote_duration_ms=duration_ms,
                 )
                 # If blockchain update is successful, commit local changes
                 knowledge.content_hash = new_knowledge_hash # Update local hash
                 knowledge.status = models.KnowledgeStatus.PENDING   # 状态变更为待验证
                 knowledge.voting_deadline = datetime.now(timezone.utc) + timedelta(seconds=duration_sec)
+                
+                # 根据合约规则更新 verification_id
+                knowledge.verification_id = f"verify_{knowledge.chain_id}_{timestamp_ms}"
+
                 db.add(
                     models.KnowledgeHistory(
                         knowledge_id=knowledge_id,
