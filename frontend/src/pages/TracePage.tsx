@@ -18,6 +18,7 @@ export const TracePage: React.FC = () => {
 
   const [pending, setPending] = useState<{ id: number; chainId: string | null; action: PendingAction } | null>(null);
   const [lastResult, setLastResult] = useState<{ message: string; tx_hash?: string } | null>(null);
+  const [historyDetail, setHistoryDetail] = useState<KnowledgeHistoryItem | null>(null);
 
   const loadList = async () => {
     setLoading(true);
@@ -295,8 +296,19 @@ export const TracePage: React.FC = () => {
                 ) : (
                   <ul style={{ margin: 0, paddingLeft: 20 }}>
                     {history.map((h, i) => (
-                      <li key={i} style={{ marginBottom: 4, fontSize: 12, wordBreak: "break-all" }}>
-                        {h.content_hash} @ {h.created_at}
+                      <li 
+                        key={i} 
+                        style={{ 
+                          marginBottom: 4, 
+                          fontSize: 12, 
+                          wordBreak: "break-all", 
+                          cursor: "pointer",
+                          color: "#1976d2",
+                          textDecoration: "underline"
+                        }}
+                        onClick={() => setHistoryDetail(h)}
+                      >
+                        {h.content_hash} @ {formatDateTime(h.created_at)}
                       </li>
                     ))}
                   </ul>
@@ -308,6 +320,78 @@ export const TracePage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {historyDetail && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1000
+        }} onClick={() => setHistoryDetail(null)}>
+          <div style={{
+            backgroundColor: "#fff",
+            padding: 24,
+            borderRadius: 8,
+            maxWidth: "80%",
+            maxHeight: "80%",
+            overflowY: "auto",
+            position: "relative",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #eee", paddingBottom: 12 }}>
+              <h3 style={{ margin: 0 }}>历史版本详情</h3>
+              <button 
+                onClick={() => setHistoryDetail(null)}
+                style={{ border: "none", background: "none", fontSize: 24, cursor: "pointer", color: "#999" }}
+              >&times;</button>
+            </div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "12px 16px", fontSize: 14 }}>
+              <div style={{ fontWeight: 600, color: "#666" }}>链上 ID</div>
+              <div>{historyDetail.chain_id || "未上链"}</div>
+
+              <div style={{ fontWeight: 600, color: "#666" }}>标题</div>
+              <div>{historyDetail.title || "无"}</div>
+              
+              <div style={{ fontWeight: 600, color: "#666" }}>来源</div>
+              <div>{historyDetail.source || "无"}</div>
+              
+              <div style={{ fontWeight: 600, color: "#666" }}>正文</div>
+              <div style={{ whiteSpace: "pre-wrap", background: "#f5f5f5", padding: 12, borderRadius: 4, maxHeight: 300, overflowY: "auto" }}>
+                {historyDetail.content || "无"}
+              </div>
+              
+              <div style={{ fontWeight: 600, color: "#666" }}>内容哈希</div>
+              <div style={{ wordBreak: "break-all", fontSize: 12, color: "#555" }}>{historyDetail.content_hash}</div>
+              
+              <div style={{ fontWeight: 600, color: "#666" }}>状态</div>
+              <div>
+                {historyDetail.status === "pending" ? "待投票" : historyDetail.status === "verified" 
+                  ? "已通过" : historyDetail.status === "rejected" ? "已拒绝" : (historyDetail.status || "未知")}
+              </div>
+
+              <div style={{ fontWeight: 600, color: "#666" }}>操作者</div>
+              <div>{historyDetail.operator || "无"}</div>
+              
+              <div style={{ fontWeight: 600, color: "#666" }}>保存时间</div>
+              <div>{formatDateTime(historyDetail.created_at)}</div>
+            </div>
+            
+            <div style={{ marginTop: 24, textAlign: "right" }}>
+              <button 
+                onClick={() => setHistoryDetail(null)}
+                style={{ padding: "8px 24px", cursor: "pointer" }}
+              >关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

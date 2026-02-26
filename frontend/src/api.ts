@@ -21,7 +21,15 @@ export type Knowledge = {
 };
 
 export type KnowledgeHistoryItem = {
+  id: number;
+  knowledge_id: number;
+  title: string | null;
+  content: string | null;
   content_hash: string;
+  source: string | null;
+  operator: string | null;
+  chain_id: string | null;
+  status: string | null;
   created_at: string;
 };
 

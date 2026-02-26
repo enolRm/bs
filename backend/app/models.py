@@ -33,6 +33,12 @@ class KnowledgeHistory(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     knowledge_id = Column(Integer, ForeignKey("knowledge.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=True)
+    content = Column(Text, nullable=True)
     content_hash = Column(String(255), nullable=False)  # 更新前的内容哈希
+    source = Column(String(255), nullable=True)
+    operator = Column(String(64), nullable=True)
+    chain_id = Column(String(255), nullable=True)
+    status = Column(String(50), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

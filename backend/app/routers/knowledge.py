@@ -109,8 +109,13 @@ def update_knowledge(
     if not knowledge:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识不存在")
 
-    # Store original hash for history if content changes
+    # Store original data for history if content changes
+    old_title = knowledge.title
+    old_content = knowledge.content
+    old_source = knowledge.source
     old_knowledge_hash = knowledge.content_hash
+    old_chain_id = knowledge.chain_id
+    old_status = knowledge.status
 
     # Apply updates from payload to the knowledge object
     if payload.title is not None:
@@ -135,12 +140,14 @@ def update_knowledge(
                 duration_sec = v_duration * unit_map.get(v_unit, 1)
                 duration_ms = duration_sec * 1000
 
+                operator = "system_operator" # Placeholder
+
                 client = get_blockchain_client()
                 client.update_knowledge(
                     id=str(knowledge.chain_id),
                     new_content_hash=new_knowledge_hash, # Use the new combined hash
                     new_source_credential=knowledge.source or "",
-                    operator="system_operator",  # Placeholder
+                    operator=operator,
                     operator_role="2",  # Placeholder
                     new_update_record_hash=old_knowledge_hash, # Use old hash for history tracing
                     timestamp_ms=int(time.time() * 1000),
@@ -153,7 +160,13 @@ def update_knowledge(
                 db.add(
                     models.KnowledgeHistory(
                         knowledge_id=knowledge_id,
-                        content_hash=old_knowledge_hash, # Record the old hash
+                        title=old_title,
+                        content=old_content,
+                        content_hash=old_knowledge_hash,
+                        source=old_source,
+                        operator=operator,
+                        chain_id=old_chain_id,
+                        status=old_status,
                     )
                 )
                 db.add(knowledge)

@@ -24,7 +24,15 @@ class KnowledgeUpdate(BaseModel):
 
 
 class KnowledgeHistoryOut(BaseModel):
+    id: int
+    knowledge_id: int
+    title: Optional[str]
+    content: Optional[str]
     content_hash: str
+    source: Optional[str]
+    operator: Optional[str]
+    chain_id: Optional[str]
+    status: Optional[str]
     created_at: datetime
 
     class Config:
