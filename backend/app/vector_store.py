@@ -48,6 +48,22 @@ class VectorStore:
             n_results=top_k,
         )
 
+    def get_all(self, offset: int = 0, limit: int = 10) -> Dict[str, Any]:
+        """分页获取所有向量数据（不含 embeddings）."""
+        # 获取集合的总数
+        count = self._collection.count()
+        
+        # 分页获取数据
+        result = self._collection.get(
+            include=["metadatas", "documents"],
+            offset=offset,
+            limit=limit
+        )
+        
+        # 将总数放入结果中
+        result["total"] = count
+        return result
+
 
 vector_store = VectorStore()
 

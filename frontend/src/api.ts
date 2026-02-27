@@ -41,3 +41,10 @@ export type VoteDetails = {
   reject_voters: string[];
 };
 
+export type VectorData = {
+  ids: string[];
+  metadatas: Record<string, any>[];
+  documents: string[];
+  total: number;
+};
+

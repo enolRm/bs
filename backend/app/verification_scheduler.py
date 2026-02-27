@@ -113,7 +113,7 @@ def verify_knowledge_logic(db: Session, knowledge_id: int):
                 try:
                     embedding = embed_texts([knowledge.content])[0]
                     vector_store.add_documents(
-                        ids=[str(knowledge.id)],
+                        ids=[str(knowledge.chain_id)],
                         embeddings=[embedding],
                         metadatas=[
                             {
