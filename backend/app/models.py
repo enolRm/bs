@@ -43,3 +43,14 @@ class KnowledgeHistory(Base):
     status = Column(String(50), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
+
+class Vote(Base):
+    __tablename__ = "votes"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    content_hash = Column(String(255), index=True, nullable=False) # 关联内容哈希
+    voter = Column(String(64), nullable=False)
+    support = Column(Integer, nullable=False)  # 1 for agree, 0 for disagree
+    voter_role = Column(Integer, default=0)    # 0: Normal, 1: Expert, 2: Admin
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+

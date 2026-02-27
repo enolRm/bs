@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from .. import schemas
 from ..db import get_db
 from ..embeddings import embed_texts
-from ..models import Knowledge, KnowledgeStatus
+from ..models import Knowledge, KnowledgeStatus, Vote
 from ..vector_store import vector_store
 from ..config import settings
 from ..blockchain import get_blockchain_client
@@ -57,6 +57,16 @@ def vote_knowledge_onchain(
             voter_role=voter_role,
             current_time_ms=int(time.time() * 1000),
         )
+        
+        # 本地数据库保存投票记录
+        new_vote = Vote(
+            content_hash=knowledge.content_hash,
+            voter=voter,
+            support=1 if support else 0,
+            voter_role=voter_role
+        )
+        db.add(new_vote)
+        db.commit()
     except Exception as e:
         if "vote is not in valid time range" in str(e):
             raise HTTPException(
@@ -92,3 +102,40 @@ def finalize_knowledge_onchain(
     # 重新获取最新状态
     db.refresh(knowledge)
     return knowledge
+
+
+@router.get("/votes-by-hash/{content_hash}", summary="通过哈希值获取知识投票详情")
+def get_knowledge_votes_by_hash(
+    content_hash: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    通过内容哈希获取投票详情
+    """
+    votes = db.query(Vote).filter(Vote.content_hash == content_hash).all()
+    
+    agree_voters = [v.voter for v in votes if v.support == 1]
+    reject_voters = [v.voter for v in votes if v.support == 0]
+    
+    return {
+        "content_hash": content_hash,
+        "agree_count": len(agree_voters),
+        "reject_count": len(reject_voters),
+        "agree_voters": agree_voters,
+        "reject_voters": reject_voters
+    }
+
+
+@router.get("/{knowledge_id}/votes", summary="获取当前知识投票详情")
+def get_knowledge_votes(
+    knowledge_id: int,
+    db: Session = Depends(get_db),
+) -> dict:
+    """
+    获取知识当前版本的投票详情
+    """
+    knowledge = db.query(Knowledge).filter(Knowledge.id == knowledge_id).first()
+    if not knowledge:
+        raise HTTPException(status_code=404, detail="知识不存在")
+        
+    return get_knowledge_votes_by_hash(knowledge.content_hash, db)

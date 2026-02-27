@@ -33,3 +33,11 @@ export type KnowledgeHistoryItem = {
   created_at: string;
 };
 
+export type VoteDetails = {
+  content_hash: string;
+  agree_count: number;
+  reject_count: number;
+  agree_voters: string[];
+  reject_voters: string[];
+};
+
