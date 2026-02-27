@@ -12,6 +12,7 @@ from ..config import settings
 from ..db import get_db
 from ..blockchain import get_blockchain_client
 from ..verification_scheduler import schedule_verification
+from ..vector_store import vector_store
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 logger = logging.getLogger(__name__)
@@ -166,6 +167,15 @@ def update_knowledge(
                 
                 # 根据合约规则更新 verification_id
                 knowledge.verification_id = f"verify_{knowledge.chain_id}_{timestamp_ms}"
+
+                # 知识内容已变更，删除向量库中原有的旧向量（待新版本验证后再重新插入）
+                # 只有原先是已验证状态（已入向量库）的才需要删除
+                if knowledge.chain_id and old_status == models.KnowledgeStatus.VERIFIED:
+                    try:
+                        vector_store.delete_documents(ids=[str(knowledge.chain_id)])
+                        logger.info("已删除知识 %s 的旧向量 (chain_id: %s)", knowledge.id, knowledge.chain_id)
+                    except Exception as e:
+                        logger.warning("删除旧向量失败，可能该知识尚未向量化: %s", e)
 
                 db.add(
                     models.KnowledgeHistory(

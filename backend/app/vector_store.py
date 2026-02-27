@@ -38,6 +38,10 @@ class VectorStore:
             documents=documents,
         )
 
+    def delete_documents(self, ids: List[str]) -> None:
+        """从向量库中删除指定的文档."""
+        self._collection.delete(ids=ids)
+
     def query(
         self,
         query_embedding: List[float],

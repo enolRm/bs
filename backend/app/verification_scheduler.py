@@ -112,6 +112,13 @@ def verify_knowledge_logic(db: Session, knowledge_id: int):
             if knowledge.content and knowledge.content.strip():
                 try:
                     embedding = embed_texts([knowledge.content])[0]
+                    # 在插入前先尝试删除，防止 ID 冲突 (ChromaDB add 如果 ID 已存在会抛异常)
+                    if knowledge.chain_id:
+                        try:
+                            vector_store.delete_documents(ids=[str(knowledge.chain_id)])
+                        except Exception:
+                            pass
+
                     vector_store.add_documents(
                         ids=[str(knowledge.chain_id)],
                         embeddings=[embedding],

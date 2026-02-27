@@ -96,5 +96,3 @@ cache/**
 *.py[cod]
 
 start_services.ps1
-
-node_modules/
