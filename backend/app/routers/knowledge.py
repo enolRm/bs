@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import time
+import random
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -60,11 +61,11 @@ def create_knowledge(
             duration_ms = duration_sec * 1000
 
             client = get_blockchain_client()
-            chain_id = str(knowledge.id)+"-"+knowledge_hash[:6]
+            chain_id = f"{knowledge.id}-{random.randint(100000, 999999)}"
             timestamp_ms = int(knowledge.created_at.timestamp() * 1000)
             
             result = client.submit_knowledge(
-                id=chain_id,   # 设置链上知识ID，为避免冲突，在本地id后添加哈希的前6位
+                id=chain_id,   # 设置链上知识ID，为避免冲突，在本地id后添加6位随机数
                 content_hash=knowledge_hash,
                 source_credential=payload.source or "",
                 submitter="TODO: get actual submitter from auth context",  # 替换为实际提交者
