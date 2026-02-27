@@ -1,3 +1,4 @@
+import re
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -83,7 +84,10 @@ async def qa_endpoint(
         "你是一个基于可信知识库的大模型助手。"
         "请严格依据给定的知识内容回答用户问题，"
         "如果知识中没有相关信息，请明确说明不知道，不要编造。"
-        "在回答结尾简要列出参考的知识ID。"
+        "注意：在回答正文中，请仅提及与答案直接相关的知识内容。不要在正文中解释、分析或提及任何不相关的知识条目（例如：不要解释为什么某条知识不相关）。"
+        "在回答结尾，请务必按照以下格式列出你实际引用到的知识 ID：\n"
+        "【参考知识ID：ID1, ID2, ...】\n"
+        "注意：只列出你真正用于生成回答的知识 ID。如果没有引用任何知识，请写：【参考知识ID：无】"
     )
     user_prompt = f"用户问题：{question}\n\n以下是可用的知识内容：\n{context_text}"
 
@@ -101,8 +105,31 @@ async def qa_endpoint(
             detail=str(e),
         ) from e
 
+    # 5. 解析回答中的知识 ID 并过滤 contexts
+    # 尝试从回答中提取 【参考知识ID：...】 格式的内容
+    referenced_ids = []
+    # 匹配中文或英文冒号，匹配多种可能的 ID 分隔符
+    match = re.search(r"【参考知识ID[:：](.*?)】", answer)
+    if match:
+        ids_str = match.group(1)
+        if "无" not in ids_str:
+            # 提取所有数字作为 ID
+            try:
+                referenced_ids = [int(i) for i in re.findall(r"\d+", ids_str)]
+            except ValueError:
+                referenced_ids = []
+    
+    # 过滤 contexts，只保留模型声称引用的知识
+    if referenced_ids:
+        filtered_contexts = [c for c in contexts if c["id"] in referenced_ids]
+    else:
+        # 如果模型没有按格式提供 ID 或说“无”，则认为没有使用知识
+        # 为了保险，如果模型虽然没按格式写但在文本中提到了某些 ID，我们也可以尝试匹配
+        # 但目前先严格按照格式来，这有助于引导模型输出
+        filtered_contexts = []
+
     return {
         "answer": answer,
-        "contexts": contexts,
+        "contexts": filtered_contexts,
     }
 

@@ -14,6 +14,24 @@ def _mock_chat_response(messages: List[dict]) -> str:
             break
     
     # 简单的基于规则的回复
+    if "以下是可用的知识内容：" in user_message:
+        # 尝试提取一些知识 ID 来模拟回答
+        import re
+        ids = re.findall(r"\[知识 (\d+)\]", user_message)
+        if ids:
+            # 模拟：如果有多个 ID，只提及前两个，不要提到剩下的
+            # 这样可以模拟过滤掉无关知识的效果
+            return (
+                f"根据您提供的知识（ID: {ids[0]}），我可以回答：\n"
+                "这是一个基于知识库的模拟回答。请注意，我没有在正文中提及或分析不相关的知识 ID。\n\n"
+                f"【参考知识ID：{ids[0]}】"
+            )
+        else:
+            return (
+                "抱歉，我没有在提供的知识中找到相关信息。\n\n"
+                "【参考知识ID：无】"
+            )
+
     if "知识" in user_message or "系统" in user_message:
         return (
             f"根据您的问题：{user_message}\n\n"

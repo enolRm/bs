@@ -56,7 +56,7 @@ export const QAPage: React.FC = () => {
               {contexts.map((c) => (
                 <div key={c.id} style={{ background: "#f7f7f7", padding: 10, borderRadius: 6 }}>
                   <div style={{ fontWeight: 600 }}>
-                    #{c.id} {c.title}
+                    #{c.id}  标题：{c.title}
                   </div>
                   <div style={{ color: "#666" }}>来源：{c.source || "-"}</div>
                 </div>

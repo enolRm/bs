@@ -9,7 +9,7 @@ from .models import KnowledgeStatus
 class KnowledgeCreate(BaseModel):
     title: str = Field(..., max_length=255)
     content: str
-    source: Optional[str] = None
+    source: str = Field(..., min_length=1, description="知识来源，如 DOI、官方链接等")
     vote_duration: int = Field(60, description="投票时长数值")
     vote_unit: str = Field("s", description="投票时长单位: s, m, h, d")
 

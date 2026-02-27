@@ -306,7 +306,7 @@ export const TracePage: React.FC = () => {
                     onChange={(e) => setEditContent(e.target.value)}
                   />
                 </label>
-                <button onClick={saveUpdate} disabled={saving} style={{ padding: "8px 12px" }}>
+                <button onClick={saveUpdate} disabled={saving || !editTitle || !editContent || !editSource} style={{ padding: "8px 12px" }}>
                   {saving ? "保存中..." : "保存更新"}
                 </button>
               </div>

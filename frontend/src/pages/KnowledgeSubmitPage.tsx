@@ -90,7 +90,7 @@ export const KnowledgeSubmitPage: React.FC = () => {
 
         <button
           onClick={submit}
-          disabled={loading || !title || !content}
+          disabled={loading || !title || !content || !source}
           style={{ padding: "10px 14px", width: 140 }}
         >
           {loading ? "提交中..." : "提交"}
