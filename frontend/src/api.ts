@@ -80,5 +80,9 @@ export const knowledgeApi = {
     const res = await api.post(`/warnings/${id}/process`);
     return res.data;
   },
+  deleteKnowledge: async (id: number) => {
+    const res = await api.delete(`/knowledge/${id}`);
+    return res.data;
+  },
 };
 

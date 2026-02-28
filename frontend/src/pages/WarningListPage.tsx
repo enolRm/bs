@@ -1,10 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { knowledgeApi, WarningMessage } from "../api";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { AlertDialog } from "../components/AlertDialog";
 
 export const WarningListPage: React.FC = () => {
   const [warnings, setWarnings] = useState<WarningMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingWarningId, setPendingWarningId] = useState<number | null>(null);
+  const [alertConfig, setAlertConfig] = useState<{ show: boolean; title: string; message: string; type: "error" | "success" }>({
+    show: false,
+    title: "",
+    message: "",
+    type: "success"
+  });
 
   const loadWarnings = async () => {
     setLoading(true);
@@ -19,16 +30,35 @@ export const WarningListPage: React.FC = () => {
     }
   };
 
-  const handleProcess = async (id: number) => {
-    if (!window.confirm("确认已处理该警告信息吗？")) return;
+  const handleProcess = (id: number) => {
+    setPendingWarningId(id);
+    setShowConfirm(true);
+  };
+
+  const confirmProcess = async () => {
+    if (pendingWarningId === null) return;
+    const id = pendingWarningId;
+    setShowConfirm(false);
+    setPendingWarningId(null);
     try {
       await knowledgeApi.processWarning(id);
       // 更新本地状态，显示已处理
       setWarnings(warnings.map(w => w.id === id ? { ...w, is_processed: 1 } : w));
       // 通知导航栏更新数量
       window.dispatchEvent(new CustomEvent("update-warning-count"));
+      setAlertConfig({
+        show: true,
+        title: "处理成功",
+        message: "警告信息已标记为已处理",
+        type: "success"
+      });
     } catch (e: any) {
-      alert("处理失败: " + (e?.response?.data?.detail || e?.message));
+      setAlertConfig({
+        show: true,
+        title: "处理失败",
+        message: e?.response?.data?.detail || e?.message || "未知错误",
+        type: "error"
+      });
     }
   };
 
@@ -98,6 +128,22 @@ export const WarningListPage: React.FC = () => {
           </tbody>
         </table>
       )}
+
+      <ConfirmDialog
+        show={showConfirm}
+        title="确认处理"
+        message="确认已处理该警告信息吗？"
+        onConfirm={confirmProcess}
+        onCancel={() => setShowConfirm(false)}
+      />
+
+      <AlertDialog
+        show={alertConfig.show}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={() => setAlertConfig({ ...alertConfig, show: false })}
+      />
     </div>
   );
 };

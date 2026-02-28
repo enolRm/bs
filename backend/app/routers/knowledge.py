@@ -198,11 +198,89 @@ def update_knowledge(
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"区块链更新失败: {e}")
         else:
             # Blockchain is not configured, but knowledge hash changed.
-            # According to user's request, we should not update local DB.
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="知识内容已变更，但上链更新失败。本地数据库不予更新。"
+            knowledge.content_hash = new_knowledge_hash
+            db.commit()
+            db.refresh(knowledge)
+            return knowledge
+
+    db.commit()
+    db.refresh(knowledge)
+    return knowledge
+
+
+@router.delete("/{knowledge_id}", summary="删除知识")
+def delete_knowledge(
+    knowledge_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    删除知识：
+    1. 本地数据库删除数据（包含历史记录和告警消息）
+    2. 向量数据库删除向量
+    3. 区块链使数据失效：复用 update_knowledge 设置 5s 投票时长，使其在 5s 后变为 REJECTED 状态
+    """
+    knowledge = db.query(models.Knowledge).filter(models.Knowledge.id == knowledge_id).first()
+    if not knowledge:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识不存在")
+
+    # 1. 区块链使数据失效 (如果配置了区块链且知识已上链)
+    if settings.TBAAS_SECRET_ID and settings.TBAAS_SECRET_KEY and knowledge.chain_id:
+        try:
+            # 计算 5s 投票时长（毫秒）
+            duration_sec = 5
+            duration_ms = duration_sec * 1000
+            
+            # 使用一个标记为删除的内容哈希
+            delete_hash = f"DELETED_{knowledge.content_hash}"
+            operator = "system_operator"
+            timestamp_ms = int(time.time() * 1000)
+
+            client = get_blockchain_client()
+            client.update_knowledge(
+                id=str(knowledge.chain_id),
+                new_content_hash=delete_hash,
+                new_source_credential="DELETED",
+                operator=operator,
+                operator_role="2",
+                new_update_record_hash=knowledge.content_hash,
+                timestamp_ms=timestamp_ms,
+                vote_duration_ms=duration_ms,
             )
+            logger.info("已在链上发起删除更新 (chain_id: %s)", knowledge.chain_id)
+            
+            # 虽然我们即将从本地数据库删除，但由于我们在链上发起了更新，
+            # 链上会产生一个新的 verify_id。由于我们随后会删除本地数据，
+            # 定时器触发时会发现知识不存在而跳过 judgeVerificationResult。
+            # 这符合用户“失效”的要求（因为 PENDING 或 REJECTED 都不是 VERIFIED）。
+        except Exception as e:
+            logger.error("区块链端失效操作失败: %s", e)
+            # 即使链上失败，我们通常也应该继续删除本地数据，或者抛出异常
+            # 这里选择抛出异常，确保三方一致性
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"区块链端失效操作失败: {e}")
+
+    # 2. 向量数据库删除向量
+    if knowledge.chain_id:
+        try:
+            vector_store.delete_documents(ids=[str(knowledge.chain_id)])
+            logger.info("已从向量库删除知识 (chain_id: %s)", knowledge.chain_id)
+        except Exception as e:
+            logger.warning("从向量库删除失败（可能尚未向量化）: %s", e)
+
+    # 3. 本地数据库删除数据
+    try:
+        # 手动清理关联表数据（如果没设级联删除）
+        db.query(models.KnowledgeHistory).filter(models.KnowledgeHistory.knowledge_id == knowledge_id).delete()
+        db.query(models.WarningMessage).filter(models.WarningMessage.knowledge_id == knowledge_id).delete()
+        
+        db.delete(knowledge)
+        db.commit()
+        logger.info("已从本地数据库删除知识 (id: %s)", knowledge_id)
+    except Exception as e:
+        db.rollback()
+        logger.error("本地数据库删除失败: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"本地数据库删除失败: {e}")
+
+    return {"detail": "知识已成功删除"}
 
 @router.get("/{knowledge_id}/history", summary="获取知识更新历史（内容哈希追溯）")
 def get_knowledge_history(

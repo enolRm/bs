@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { api, Knowledge, KnowledgeHistoryItem, VoteDetails } from "../api";
+import { Modal } from "../components/Modal";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 type PendingAction = "vote_yes" | "vote_no" | null;
 
@@ -21,6 +23,8 @@ export const TracePage: React.FC = () => {
   const [historyDetail, setHistoryDetail] = useState<KnowledgeHistoryItem | null>(null);
   const [voteDetails, setVoteDetails] = useState<VoteDetails | null>(null);
   const [showVoteModal, setShowVoteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const loadList = async () => {
     setLoading(true);
@@ -92,6 +96,12 @@ export const TracePage: React.FC = () => {
     return new Date(isoStr) < new Date();
   };
 
+  const hasChanges = selected && (
+    editTitle !== selected.title ||
+    editContent !== selected.content ||
+    editSource !== (selected.source || "")
+  );
+
   const fetchVoteDetails = async (contentHash: string) => {
     try {
       const resp = await api.get<VoteDetails>(`/verification/votes-by-hash/${contentHash}`);
@@ -140,6 +150,28 @@ export const TracePage: React.FC = () => {
       setError(e?.response?.data?.detail || e?.message || "更新失败");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = () => {
+    if (!selected) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selected) return;
+    setShowDeleteConfirm(false);
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.delete(`/knowledge/${selected.id}`);
+      setLastResult({ message: "知识已成功删除" });
+      setSelected(null);
+      await loadList();
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || e?.message || "删除失败");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -306,9 +338,29 @@ export const TracePage: React.FC = () => {
                     onChange={(e) => setEditContent(e.target.value)}
                   />
                 </label>
-                <button onClick={saveUpdate} disabled={saving || !editTitle || !editContent || !editSource} style={{ padding: "8px 12px" }}>
-                  {saving ? "保存中..." : "保存更新"}
-                </button>
+                <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+                  <button 
+                    onClick={saveUpdate} 
+                    disabled={saving || deleting || !editTitle || !editContent || !editSource || !hasChanges} 
+                    style={{ 
+                      padding: "8px 16px", 
+                      background: (saving || deleting || !editTitle || !editContent || !editSource || !hasChanges) ? "#bdbdbd" : "#1976d2", 
+                      color: "#fff", 
+                      border: "none", 
+                      borderRadius: 4, 
+                      cursor: (saving || deleting || !editTitle || !editContent || !editSource || !hasChanges) ? "not-allowed" : "pointer" 
+                    }}
+                  >
+                    {saving ? "保存中..." : "保存更新"}
+                  </button>
+                  <button 
+                    onClick={handleDelete} 
+                    disabled={saving || deleting} 
+                    style={{ padding: "8px 16px", background: "#f44336", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
+                  >
+                    {deleting ? "删除中..." : "删除知识"}
+                  </button>
+                </div>
               </div>
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontWeight: 600, marginBottom: 6 }}>当前哈希</div>
@@ -360,146 +412,94 @@ export const TracePage: React.FC = () => {
       </div>
 
       {showVoteModal && voteDetails && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(0,0,0,0.5)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          zIndex: 1000
-        }}>
-          <div style={{
-            background: "#fff",
-            padding: 24,
-            borderRadius: 8,
-            width: "500px",
-            maxHeight: "80vh",
-            overflowY: "auto",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0 }}>投票详情</h3>
-              <button onClick={() => setShowVoteModal(false)} style={{ border: "none", background: "none", fontSize: 20, cursor: "pointer" }}>&times;</button>
-            </div>
-            
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: "#666", wordBreak: "break-all" }}>内容哈希：{voteDetails.content_hash}</div>
-            </div>
-            
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-              <div style={{ background: "#e8f5e9", padding: 12, borderRadius: 6, textAlign: "center" }}>
-                <div style={{ color: "#2e7d32", fontSize: 14 }}>同意票数</div>
-                <div style={{ fontSize: 24, fontWeight: "bold", color: "#2e7d32" }}>{voteDetails.agree_count}</div>
-              </div>
-              <div style={{ background: "#ffebee", padding: 12, borderRadius: 6, textAlign: "center" }}>
-                <div style={{ color: "#c62828", fontSize: 14 }}>反对票数</div>
-                <div style={{ fontSize: 24, fontWeight: "bold", color: "#c62828" }}>{voteDetails.reject_count}</div>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8, color: "#2e7d32" }}>同意投票者列表：</div>
-              {voteDetails.agree_voters.length > 0 ? (
-                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
-                  {voteDetails.agree_voters.map((v, i) => <li key={i} style={{ marginBottom: 4, wordBreak: "break-all" }}>{v}</li>)}
-                </ul>
-              ) : <div style={{ color: "#999", fontSize: 14 }}>暂无</div>}
-            </div>
-
-            <div>
-              <div style={{ fontWeight: 600, marginBottom: 8, color: "#c62828" }}>反对投票者列表：</div>
-              {voteDetails.reject_voters.length > 0 ? (
-                <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
-                  {voteDetails.reject_voters.map((v, i) => <li key={i} style={{ marginBottom: 4, wordBreak: "break-all" }}>{v}</li>)}
-                </ul>
-              ) : <div style={{ color: "#999", fontSize: 14 }}>暂无</div>}
-            </div>
-
-            <button 
-              onClick={() => setShowVoteModal(false)}
-              style={{ width: "100%", marginTop: 24, padding: "10px", background: "#f5f5f5", border: "1px solid #ddd", borderRadius: 4, cursor: "pointer" }}
-            >
-              关闭
-            </button>
+        <Modal
+          show={showVoteModal}
+          title="投票详情"
+          onClose={() => setShowVoteModal(false)}
+        >
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: "#666", wordBreak: "break-all" }}>内容哈希：{voteDetails.content_hash}</div>
           </div>
-        </div>
+          
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+            <div style={{ background: "#e8f5e9", padding: 12, borderRadius: 6, textAlign: "center" }}>
+              <div style={{ color: "#2e7d32", fontSize: 14 }}>同意票数</div>
+              <div style={{ fontSize: 24, fontWeight: "bold", color: "#2e7d32" }}>{voteDetails.agree_count}</div>
+            </div>
+            <div style={{ background: "#ffebee", padding: 12, borderRadius: 6, textAlign: "center" }}>
+              <div style={{ color: "#c62828", fontSize: 14 }}>反对票数</div>
+              <div style={{ fontSize: 24, fontWeight: "bold", color: "#c62828" }}>{voteDetails.reject_count}</div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 600, marginBottom: 8, color: "#2e7d32" }}>同意投票者列表：</div>
+            {voteDetails.agree_voters.length > 0 ? (
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
+                {voteDetails.agree_voters.map((v, i) => <li key={i} style={{ marginBottom: 4, wordBreak: "break-all" }}>{v}</li>)}
+              </ul>
+            ) : <div style={{ color: "#999", fontSize: 14 }}>暂无</div>}
+          </div>
+
+          <div>
+            <div style={{ fontWeight: 600, marginBottom: 8, color: "#c62828" }}>反对投票者列表：</div>
+            {voteDetails.reject_voters.length > 0 ? (
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 14 }}>
+                {voteDetails.reject_voters.map((v, i) => <li key={i} style={{ marginBottom: 4, wordBreak: "break-all" }}>{v}</li>)}
+              </ul>
+            ) : <div style={{ color: "#999", fontSize: 14 }}>暂无</div>}
+          </div>
+        </Modal>
       )}
 
       {historyDetail && (
-        <div style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          zIndex: 1000
-        }} onClick={() => setHistoryDetail(null)}>
-          <div style={{
-            backgroundColor: "#fff",
-            padding: 24,
-            borderRadius: 8,
-            maxWidth: "80%",
-            maxHeight: "80%",
-            overflowY: "auto",
-            position: "relative",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
-          }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #eee", paddingBottom: 12 }}>
-              <h3 style={{ margin: 0 }}>历史版本详情</h3>
-              <button 
-                onClick={() => setHistoryDetail(null)}
-                style={{ border: "none", background: "none", fontSize: 24, cursor: "pointer", color: "#999" }}
-              >&times;</button>
+        <Modal
+          show={!!historyDetail}
+          title="历史版本详情"
+          onClose={() => setHistoryDetail(null)}
+          maxWidth="80%"
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "12px 16px", fontSize: 14 }}>
+            <div style={{ fontWeight: 600, color: "#666" }}>链上 ID</div>
+            <div>{historyDetail.chain_id || "未上链"}</div>
+
+            <div style={{ fontWeight: 600, color: "#666" }}>标题</div>
+            <div>{historyDetail.title || "无"}</div>
+            
+            <div style={{ fontWeight: 600, color: "#666" }}>来源</div>
+            <div>{historyDetail.source || "无"}</div>
+            
+            <div style={{ fontWeight: 600, color: "#666" }}>正文</div>
+            <div style={{ whiteSpace: "pre-wrap", background: "#f5f5f5", padding: 12, borderRadius: 4, maxHeight: 300, overflowY: "auto" }}>
+              {historyDetail.content || "无"}
             </div>
             
-            <div style={{ display: "grid", gridTemplateColumns: "100px 1fr", gap: "12px 16px", fontSize: 14 }}>
-              <div style={{ fontWeight: 600, color: "#666" }}>链上 ID</div>
-              <div>{historyDetail.chain_id || "未上链"}</div>
-
-              <div style={{ fontWeight: 600, color: "#666" }}>标题</div>
-              <div>{historyDetail.title || "无"}</div>
-              
-              <div style={{ fontWeight: 600, color: "#666" }}>来源</div>
-              <div>{historyDetail.source || "无"}</div>
-              
-              <div style={{ fontWeight: 600, color: "#666" }}>正文</div>
-              <div style={{ whiteSpace: "pre-wrap", background: "#f5f5f5", padding: 12, borderRadius: 4, maxHeight: 300, overflowY: "auto" }}>
-                {historyDetail.content || "无"}
-              </div>
-              
-              <div style={{ fontWeight: 600, color: "#666" }}>内容哈希</div>
-              <div style={{ wordBreak: "break-all", fontSize: 12, color: "#555" }}>{historyDetail.content_hash}</div>
-              
-              <div style={{ fontWeight: 600, color: "#666" }}>状态</div>
-              <div>
-                {historyDetail.status === "pending" ? "待投票" : historyDetail.status === "verified" 
-                  ? "已通过" : historyDetail.status === "rejected" ? "已拒绝" : (historyDetail.status || "未知")}
-              </div>
-
-              <div style={{ fontWeight: 600, color: "#666" }}>操作者</div>
-              <div>{historyDetail.operator || "无"}</div>
-              
-              <div style={{ fontWeight: 600, color: "#666" }}>保存时间</div>
-              <div>{formatDateTime(historyDetail.created_at)}</div>
-            </div>
+            <div style={{ fontWeight: 600, color: "#666" }}>内容哈希</div>
+            <div style={{ wordBreak: "break-all", fontSize: 12, color: "#555" }}>{historyDetail.content_hash}</div>
             
-            <div style={{ marginTop: 24, textAlign: "right" }}>
-              <button 
-                onClick={() => setHistoryDetail(null)}
-                style={{ padding: "8px 24px", cursor: "pointer" }}
-              >关闭</button>
+            <div style={{ fontWeight: 600, color: "#666" }}>状态</div>
+            <div>
+              {historyDetail.status === "pending" ? "待投票" : historyDetail.status === "verified" 
+                ? "已通过" : historyDetail.status === "rejected" ? "已拒绝" : (historyDetail.status || "未知")}
             </div>
+
+            <div style={{ fontWeight: 600, color: "#666" }}>操作者</div>
+            <div>{historyDetail.operator || "无"}</div>
+            
+            <div style={{ fontWeight: 600, color: "#666" }}>保存时间</div>
+            <div>{formatDateTime(historyDetail.created_at)}</div>
           </div>
-        </div>
+        </Modal>
       )}
+
+      <ConfirmDialog
+        show={showDeleteConfirm}
+        title="确认删除"
+        message={`确定要删除知识 #${selected?.id} "${selected?.title}" 吗？\n该操作将同时从本地数据库、向量库中删除，并使链上数据失效。`}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+        isDanger={true}
+      />
     </div>
   );
 };
