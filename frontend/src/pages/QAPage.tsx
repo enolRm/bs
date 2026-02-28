@@ -1,12 +1,45 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { api } from "../api";
 
+const QA_QUESTION_STORAGE_KEY = "qa_question";
+const QA_ANSWER_STORAGE_KEY = "qa_answer";
+const QA_CONTEXTS_STORAGE_KEY = "qa_contexts";
+
 export const QAPage: React.FC = () => {
-  const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<string | null>(null);
-  const [contexts, setContexts] = useState<any[]>([]);
+  const [question, setQuestion] = useState(() => {
+    return localStorage.getItem(QA_QUESTION_STORAGE_KEY) || "";
+  });
+  const [answer, setAnswer] = useState<string | null>(() => {
+    return localStorage.getItem(QA_ANSWER_STORAGE_KEY);
+  });
+  const [contexts, setContexts] = useState<any[]>(() => {
+    const saved = localStorage.getItem(QA_CONTEXTS_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 当问题变化时，保存到 localStorage
+  useEffect(() => {
+    localStorage.setItem(QA_QUESTION_STORAGE_KEY, question);
+  }, [question]);
+
+  // 当答案和引用上下文变化时，保存到 localStorage
+  useEffect(() => {
+    if (answer) {
+      localStorage.setItem(QA_ANSWER_STORAGE_KEY, answer);
+    } else {
+      localStorage.removeItem(QA_ANSWER_STORAGE_KEY);
+    }
+  }, [answer]);
+
+  useEffect(() => {
+    if (contexts && contexts.length > 0) {
+      localStorage.setItem(QA_CONTEXTS_STORAGE_KEY, JSON.stringify(contexts));
+    } else {
+      localStorage.removeItem(QA_CONTEXTS_STORAGE_KEY);
+    }
+  }, [contexts]);
 
   const ask = async () => {
     setLoading(true);

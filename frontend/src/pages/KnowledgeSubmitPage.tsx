@@ -1,15 +1,30 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { api, Knowledge } from "../api";
 
+const KNOWLEDGE_SUBMIT_STORAGE_KEY = "knowledge_submit_form";
+
 export const KnowledgeSubmitPage: React.FC = () => {
-  const [title, setTitle] = useState("");
-  const [source, setSource] = useState("");
-  const [content, setContent] = useState("");
-  const [voteDuration, setVoteDuration] = useState<number>(60);
-  const [voteUnit, setVoteUnit] = useState<string>("s");
+  // 从 localStorage 加载初始状态
+  const savedForm = localStorage.getItem(KNOWLEDGE_SUBMIT_STORAGE_KEY);
+  const initialForm = savedForm ? JSON.parse(savedForm) : {};
+
+  const [title, setTitle] = useState(initialForm.title || "");
+  const [source, setSource] = useState(initialForm.source || "");
+  const [content, setContent] = useState(initialForm.content || "");
+  const [voteDuration, setVoteDuration] = useState<number>(initialForm.voteDuration || 60);
+  const [voteUnit, setVoteUnit] = useState<string>(initialForm.voteUnit || "s");
+  
   const [result, setResult] = useState<Knowledge | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 当表单字段变化时，保存到 localStorage
+  useEffect(() => {
+    localStorage.setItem(
+      KNOWLEDGE_SUBMIT_STORAGE_KEY,
+      JSON.stringify({ title, source, content, voteDuration, voteUnit })
+    );
+  }, [title, source, content, voteDuration, voteUnit]);
 
   const submit = async () => {
     setLoading(true);
@@ -24,6 +39,11 @@ export const KnowledgeSubmitPage: React.FC = () => {
         vote_unit: voteUnit
       });
       setResult(resp.data);
+      // 提交成功后清除缓存
+      localStorage.removeItem(KNOWLEDGE_SUBMIT_STORAGE_KEY);
+      setTitle("");
+      setSource("");
+      setContent("");
     } catch (e: any) {
       setError(e?.response?.data?.detail || e?.message || "提交失败");
     } finally {
