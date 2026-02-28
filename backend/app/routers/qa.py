@@ -1,4 +1,5 @@
 import re
+import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,10 +8,34 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..embeddings import embed_texts
 from ..llm import zhipuai_client
-from ..models import Knowledge, KnowledgeStatus
+from ..models import Knowledge, KnowledgeStatus, WarningMessage
 from ..vector_store import vector_store
+from ..blockchain import get_blockchain_client
+from ..utils import calc_knowledge_hash
+from ..config import settings
+from .warnings import manager # 引入 WebSocket 管理器
 
 router = APIRouter(prefix="/qa", tags=["qa"])
+logger = logging.getLogger(__name__)
+
+
+async def _generate_answer_without_context(question: str):
+    try:
+        answer = await zhipuai_client.chat(
+            [
+                {
+                    "role": "user",
+                    "content": f"请回答下面的问题，并在不知道时直接只说不知道：\n问题：{question}",
+                }
+            ]
+        )
+    except RuntimeError as e:
+        # 捕获 API 错误（如 402），返回友好提示
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        ) from e
+    return {"answer": answer, "contexts": []}
 
 
 class QARequestBody:
@@ -36,45 +61,114 @@ async def qa_endpoint(
     metadatas = search_result.get("metadatas", [[]])[0]
     documents = search_result.get("documents", [[]])[0]
 
-    # 3. 根据检索到的 id 回查数据库（确保状态为已通过；目前先简单过滤）
+    # 3. 根据检索到的 id 回查数据库并验证区块链数据一致性
     contexts = []
-    for doc_id, meta, doc_content in zip(ids, metadatas, documents):
+    
+    # 首先从数据库批量加载，过滤已通过的状态
+    db_knowledges = []
+    for doc_id, meta in zip(ids, metadatas):
         try:
             k_id = int(meta.get("db_id", doc_id))
         except Exception:
             continue
+        k = db.query(Knowledge).filter(Knowledge.id == k_id).first()
+        if k and k.status == KnowledgeStatus.VERIFIED and k.chain_id:
+            db_knowledges.append(k)
 
-        k: Knowledge | None = db.query(Knowledge).filter(Knowledge.id == k_id).first()
-        if not k or k.status != KnowledgeStatus.VERIFIED:
-            continue
+    if not db_knowledges:
+        return await _generate_answer_without_context(question)
 
-        contexts.append(
-            {
+    # 如果配置了区块链，则进行链上一致性校验
+    if settings.TBAAS_SECRET_ID and settings.TBAAS_SECRET_KEY:
+        try:
+            client = get_blockchain_client()
+            chain_ids = [k.chain_id for k in db_knowledges]
+            chain_results = client.query_knowledge_by_ids(chain_ids)
+            
+            # 将链上结果转为 map 方便查找
+            chain_map = {item["id"]: item for item in chain_results}
+            
+            warnings_added = False
+            for k in db_knowledges:
+                chain_k = chain_map.get(k.chain_id)
+                if not chain_k:
+                    error_msg = f"知识 {k.id} (chain_id: {k.chain_id}) 在链上未找到"
+                    logger.warning(error_msg)
+                    db.add(WarningMessage(knowledge_id=k.id, chain_id=k.chain_id, error_message=error_msg))
+                    db.commit()
+                    warnings_added = True
+                    continue
+                
+                # 校验状态 (链上 Status 1 为 Approved)
+                if chain_k.get("status") != 1:
+                    error_msg = f"知识 {k.id} 链上状态不匹配:\n 本地=1 (Approved), 链上='{chain_k.get('status')}'"
+                    logger.warning(error_msg)
+                    db.add(WarningMessage(knowledge_id=k.id, chain_id=k.chain_id, error_message=error_msg))
+                    db.commit()
+                    warnings_added = True
+                    continue
+                
+                # 校验字段一致性
+                # 1. 验证ID
+                if k.verification_id != chain_k.get("verification_id"):
+                    error_msg = f"知识 {k.id} 验证ID不一致:\n 本地='{k.verification_id}', 链上='{chain_k.get('verification_id')}'"
+                    logger.warning(error_msg)
+                    db.add(WarningMessage(knowledge_id=k.id, chain_id=k.chain_id, error_message=error_msg))
+                    db.commit()
+                    warnings_added = True
+                    continue
+                
+                # 2. 哈希校验：
+                # 重新计算本地内容的哈希
+                recalc_hash = calc_knowledge_hash(k.title, k.source, k.content)
+                
+                # a. 与本地数据库存储的哈希比对 (确保本地数据内部一致)
+                if recalc_hash != k.content_hash:
+                    error_msg = f"知识 {k.id} 根据本地内容重新计算的哈希与本地存储哈希不一致:\n 计算值='{recalc_hash}', 存储值='{k.content_hash}'"
+                    logger.warning(error_msg)
+                    db.add(WarningMessage(knowledge_id=k.id, chain_id=k.chain_id, error_message=error_msg))
+                    db.commit()
+                    warnings_added = True
+                    continue
+                
+                # b. 与链上记录的数据比对 (确保链上链下数据一致)
+                if recalc_hash != chain_k.get("content_hash"):
+                    error_msg = f"知识 {k.id} 根据本地内容重新计算的哈希与链上哈希不一致:\n 计算值='{recalc_hash}', 链上值='{chain_k.get('content_hash')}'"
+                    logger.warning(error_msg)
+                    db.add(WarningMessage(knowledge_id=k.id, chain_id=k.chain_id, error_message=error_msg))
+                    db.commit()
+                    warnings_added = True
+                    continue
+                
+                # 校验通过
+                contexts.append({
+                    "id": k.id,
+                    "title": k.title,
+                    "source": k.source,
+                    "content": k.content,
+                })
+            
+            # 如果新增了警告，广播通知
+            if warnings_added:
+                await manager.broadcast_count(db)
+
+        except Exception as e:
+            logger.error(f"区块链一致性校验异常: {e}")
+            # 如果校验过程出错，出于安全性考虑，暂时不使用这些知识。
+            # 这里选择谨慎：如果不一致性校验过程中断（如网络问题），则不将这些知识加入 context。
+    else:
+        # 未配置区块链，仅依赖本地状态
+        for k in db_knowledges:
+            contexts.append({
                 "id": k.id,
                 "title": k.title,
                 "source": k.source,
                 "content": k.content,
-            }
-        )
+            })
 
-    # 如果没有任何“已通过”的知识，就直接用问题调用大模型
+    # 如果过滤后没有任何“已通过”且“一致”的知识
     if not contexts:
-        try:
-            answer = await zhipuai_client.chat(
-                [
-                    {
-                        "role": "user",
-                        "content": f"请回答下面的问题，并在不知道时直接说不知道：\n问题：{question}",
-                    }
-                ]
-            )
-        except RuntimeError as e:
-            # 捕获 API 错误（如 402），返回友好提示
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=str(e),
-            ) from e
-        return {"answer": answer, "contexts": []}
+        return await _generate_answer_without_context(question)
 
     # 4. 构造 Prompt
     context_text = "\n\n".join(

@@ -39,6 +39,18 @@ class KnowledgeHistoryOut(BaseModel):
         from_attributes = True
 
 
+class WarningMessageSchema(BaseModel):
+    id: int
+    knowledge_id: Optional[int]
+    chain_id: Optional[str]
+    error_message: str
+    is_processed: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class KnowledgeOut(BaseModel):
     id: int
     chain_id: Optional[Union[str, int]]

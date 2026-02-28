@@ -1,4 +1,3 @@
-import hashlib
 import logging
 import time
 import random
@@ -14,14 +13,10 @@ from ..db import get_db
 from ..blockchain import get_blockchain_client
 from ..verification_scheduler import schedule_verification
 from ..vector_store import vector_store
+from ..utils import calc_knowledge_hash
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 logger = logging.getLogger(__name__)
-
-
-def _calc_knowledge_hash(title: str, source: str, content: str) -> str:
-    combined_string = f"{title}|{source}|{content}"
-    return hashlib.sha256(combined_string.encode("utf-8")).hexdigest()
 
 
 @router.post("/", response_model=schemas.KnowledgeOut, summary="提交知识")
@@ -34,7 +29,7 @@ def create_knowledge(
     - 先在本地数据库保存全文与元数据
     - 调用 TBAAS 长安链合约 `submitKnowledge` 上链
     """
-    knowledge_hash = _calc_knowledge_hash(payload.title, payload.source, payload.content)
+    knowledge_hash = calc_knowledge_hash(payload.title, payload.source, payload.content)
 
     # 计算投票时长（秒）
     unit_map = {"s": 1, "m": 60, "h": 3600, "d": 86400}
@@ -133,7 +128,7 @@ def update_knowledge(
         knowledge.content = payload.content
 
     # Calculate the new hash based on the updated knowledge object
-    new_knowledge_hash = _calc_knowledge_hash(knowledge.title, knowledge.source, knowledge.content)
+    new_knowledge_hash = calc_knowledge_hash(knowledge.title, knowledge.source, knowledge.content)
 
     # Check if the overall knowledge hash has changed
     if new_knowledge_hash != old_knowledge_hash:

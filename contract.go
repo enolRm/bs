@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 
 	"chainmaker/pb/protogo"
 	"chainmaker/shim"
@@ -77,6 +78,8 @@ func (kc *KnowledgeContract) InvokeContract(stub shim.CMStubInterface) protogo.R
 		return kc.UpdateKnowledge(stub)
 	case "queryKnowledgeById":
 		return kc.QueryKnowledgeById(stub)
+	case "queryKnowledgeByIds":
+		return kc.QueryKnowledgeByIds(stub)
 	// 验证投票
 	case "castVote":
 		return kc.CastVote(stub)
@@ -271,6 +274,50 @@ func (kc *KnowledgeContract) QueryKnowledgeById(stub shim.CMStubInterface) proto
 
 	stub.Log("[queryKnowledgeById] success, id: " + id)
 	return shim.Success(result)
+}
+
+// QueryKnowledgeByIds 批量根据ID查询知识
+func (kc *KnowledgeContract) QueryKnowledgeByIds(stub shim.CMStubInterface) protogo.Response {
+	params := stub.GetArgs()
+	idsStr := string(params["ids"]) // 传入逗号分隔的ID字符串，例如 "id1,id2,id3"
+	if idsStr == "" {
+		return shim.Error("params error: ids must not empty")
+	}
+
+	ids := strings.Split(idsStr, ",")
+	var results []*Knowledge
+
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		key := "knowledge_" + id
+		knowledgeBytes, err := stub.GetStateFromKeyByte(key)
+		if err != nil {
+			// 如果单个查询失败，记录日志并跳过
+			stub.Log("[queryKnowledgeByIds] query single knowledge failed, id: " + id + ", error: " + err.Error())
+			continue
+		}
+		if len(knowledgeBytes) == 0 {
+			continue
+		}
+
+		var knowledge Knowledge
+		err = json.Unmarshal(knowledgeBytes, &knowledge)
+		if err != nil {
+			stub.Log("[queryKnowledgeByIds] unmarshal knowledge failed, id: " + id + ", error: " + err.Error())
+			continue
+		}
+		results = append(results, &knowledge)
+	}
+
+	resultBytes, err := json.Marshal(results)
+	if err != nil {
+		return shim.Error("marshal batch results failed: " + err.Error())
+	}
+
+	stub.Log("[queryKnowledgeByIds] success, count: " + strconv.Itoa(len(results)))
+	return shim.Success(resultBytes)
 }
 
 

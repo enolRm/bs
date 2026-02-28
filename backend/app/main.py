@@ -8,6 +8,7 @@ from .routers import knowledge as knowledge_router
 from .routers import qa as qa_router
 from .routers import verification as verification_router
 from .routers import vector as vector_router
+from .routers import warnings as warnings_router
 
 
 def create_app() -> FastAPI:
@@ -37,6 +38,7 @@ def create_app() -> FastAPI:
     app.include_router(verification_router.router, prefix=settings.API_V1_PREFIX)
     app.include_router(qa_router.router, prefix=settings.API_V1_PREFIX)
     app.include_router(vector_router.router, prefix=settings.API_V1_PREFIX)
+    app.include_router(warnings_router.router, prefix=settings.API_V1_PREFIX)
 
     # TODO:
 

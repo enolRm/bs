@@ -54,3 +54,14 @@ class Vote(Base):
     voter_role = Column(Integer, default=0)    # 0: Normal, 1: Expert, 2: Admin
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
+
+class WarningMessage(Base):
+    __tablename__ = "warning_messages"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    knowledge_id = Column(Integer, ForeignKey("knowledge.id"), nullable=True) # 数据库ID
+    chain_id = Column(String(255), nullable=True) # 链上ID
+    error_message = Column(Text, nullable=False) # 详细的错误信息
+    is_processed = Column(Integer, default=0) # 是否已处理 (0: 待处理, 1: 已处理)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+

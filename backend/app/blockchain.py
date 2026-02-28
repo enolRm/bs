@@ -114,6 +114,20 @@ class BlockchainClient:
         logger.info("查询链上知识成功, result: %s", result)
         return result
 
+    def query_knowledge_by_ids(self, ids: list[str]) -> list[Dict[str, Any]]:
+        """批量查询链上知识"""
+        if not ids:
+            return []
+        func_param = {"ids": ",".join(ids)}
+        resp = self._invoke_contract("queryKnowledgeByIds", func_param)
+        result_str = self._decode_result(resp.Result.Result)
+        logger.info("批量查询链上知识成功")
+        try:
+            return json.loads(result_str)
+        except json.JSONDecodeError:
+            logger.error("解析批量查询结果失败: %s", result_str)
+            return []
+
     def cast_vote(
         self,
         verify_id: str,

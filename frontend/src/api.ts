@@ -48,3 +48,37 @@ export type VectorData = {
   total: number;
 };
 
+export type WarningMessage = {
+  id: number;
+  knowledge_id: number | null;
+  chain_id: string | null;
+  error_message: string;
+  is_processed: number;
+  created_at: string;
+};
+
+// --- API Functions ---
+
+export const knowledgeApi = {
+  getVectorList: async () => {
+    const res = await api.get<VectorData>("/vector/list");
+    return res.data;
+  },
+  getWarnings: async () => {
+    const res = await api.get<WarningMessage[]>("/warnings/");
+    return res.data;
+  },
+  getUnprocessedCount: async () => {
+    const res = await api.get<{ count: number }>("/warnings/unprocessed_count");
+    return res.data;
+  },
+  deleteWarning: async (id: number) => {
+    const res = await api.delete(`/warnings/${id}`);
+    return res.data;
+  },
+  processWarning: async (id: number) => {
+    const res = await api.post(`/warnings/${id}/process`);
+    return res.data;
+  },
+};
+
