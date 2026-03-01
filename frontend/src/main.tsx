@@ -1,20 +1,42 @@
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Link, useLocation } from "react-router-dom";
 import { KnowledgeSubmitPage } from "./pages/KnowledgeSubmitPage";
 import { QAPage } from "./pages/QAPage";
 import { TracePage } from "./pages/TracePage";
 import { VectorListPage } from "./pages/VectorListPage";
 import { WarningListPage } from "./pages/WarningListPage";
 import { knowledgeApi } from "./api";
+import "./index.css";
+
+const NavLink: React.FC<{ to: string; children: React.ReactNode; badge?: number }> = ({ to, children, badge }) => {
+  const location = useLocation();
+  const isActive = location.pathname === to || (to === "/qa" && location.pathname === "/");
+  
+  return (
+    <Link
+      to={to}
+      className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+        isActive
+          ? "bg-primary-100 text-primary-700"
+          : "text-gray-600 hover:bg-gray-50 hover:text-primary-600"
+      }`}
+    >
+      {children}
+      {badge !== undefined && badge > 0 && (
+        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
+    </Link>
+  );
+};
 
 const App: React.FC = () => {
   const [unprocessedCount, setUnprocessedCount] = useState(0);
 
   useEffect(() => {
-    // 建立 WebSocket 连接实现实时通知
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // 这里硬编码 8000 端口，实际应根据配置或环境变量
     const wsUrl = `${protocol}//${window.location.hostname}:8000/api/v1/warnings/ws`;
     
     let socket: WebSocket | null = null;
@@ -22,7 +44,6 @@ const App: React.FC = () => {
 
     const connect = () => {
       socket = new WebSocket(wsUrl);
-
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -33,21 +54,16 @@ const App: React.FC = () => {
           console.error("解析 WebSocket 消息失败:", e);
         }
       };
-
       socket.onclose = () => {
-        console.log("WebSocket 连接已断开，尝试重连...");
         reconnectTimer = window.setTimeout(connect, 3000);
       };
-
-      socket.onerror = (error) => {
-        console.error("WebSocket 错误:", error);
+      socket.onerror = () => {
         socket?.close();
       };
     };
 
     connect();
 
-    // 监听本地更新事件（为了处理本页面的即时反馈，虽然 WS 也会广播，但本地事件更快）
     const handleUpdate = async () => {
       try {
         const { count } = await knowledgeApi.getUnprocessedCount();
@@ -60,7 +76,7 @@ const App: React.FC = () => {
 
     return () => {
       if (socket) {
-        socket.onclose = null; // 清除重连逻辑
+        socket.onclose = null;
         socket.close();
       }
       if (reconnectTimer) clearTimeout(reconnectTimer);
@@ -70,51 +86,52 @@ const App: React.FC = () => {
 
   return (
     <BrowserRouter>
-      <div style={{ maxWidth: 1000, margin: "0 auto", padding: 16 }}>
-        <h1>基于区块链与 RAG 的可信大模型知识库系统</h1>
-        <nav style={{ marginBottom: 16 }}>
-          <Link style={{ marginRight: 12 }} to="/submit">
-            知识提交
-          </Link>
-          <Link style={{ marginRight: 12 }} to="/qa">智能问答</Link>
-          <Link style={{ marginRight: 12 }} to="/trace">知识列表</Link>
-          <Link style={{ marginRight: 12 }} to="/vector">向量列表</Link>
-          <Link to="/warnings" style={{ position: "relative" }}>
-            警告信息
-            {unprocessedCount > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: -6,
-                  right: -10,
-                  backgroundColor: "red",
-                  color: "white",
-                  borderRadius: "50%",
-                  width: 16,
-                  height: 16,
-                  fontSize: 10,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {unprocessedCount > 99 ? "99+" : unprocessedCount}
-              </span>
-            )}
-          </Link>
-        </nav>
-        <Routes>
-          <Route path="/" element={<QAPage />} />
-          <Route path="/submit" element={<KnowledgeSubmitPage />} />
-          <Route path="/qa" element={<QAPage />} />
-          <Route path="/trace" element={<TracePage />} />
-          <Route path="/vector" element={<VectorListPage />} />
-          <Route path="/warnings" element={<WarningListPage />} />
-        </Routes>
+      <div className="min-h-screen bg-gray-50">
+        <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center">
+                <div className="flex-shrink-0 flex items-center">
+                  <div className="h-8 w-8 bg-primary-600 rounded-lg flex items-center justify-center text-white font-bold mr-3">
+                    B
+                  </div>
+                  <h1 className="text-xl font-bold text-gray-900 hidden md:block">
+                    可信大模型知识库系统
+                  </h1>
+                </div>
+                <nav className="ml-10 flex space-x-2">
+                  <NavLink to="/qa">智能问答</NavLink>
+                  <NavLink to="/submit">知识提交</NavLink>
+                  <NavLink to="/trace">知识列表</NavLink>
+                  <NavLink to="/vector">向量列表</NavLink>
+                  <NavLink to="/warnings" badge={unprocessedCount}>警告信息</NavLink>
+                </nav>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden min-h-[calc(100vh-10rem)]">
+            <Routes>
+              <Route path="/" element={<QAPage />} />
+              <Route path="/submit" element={<KnowledgeSubmitPage />} />
+              <Route path="/qa" element={<QAPage />} />
+              <Route path="/trace" element={<TracePage />} />
+              <Route path="/vector" element={<VectorListPage />} />
+              <Route path="/warnings" element={<WarningListPage />} />
+            </Routes>
+          </div>
+        </main>
+
+        <footer className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-gray-400 text-sm">
+          &copy; 基于区块链与 RAG 的可信大模型知识库系统
+        </footer>
       </div>
     </BrowserRouter>
   );
 };
+
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

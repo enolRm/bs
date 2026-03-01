@@ -20,22 +20,23 @@ logger = logging.getLogger(__name__)
 
 
 async def _generate_answer_without_context(question: str):
-    try:
-        answer = await zhipuai_client.chat(
-            [
-                {
-                    "role": "user",
-                    "content": f"请回答下面的问题，并在不知道时直接只说不知道：\n问题：{question}",
-                }
-            ]
-        )
-    except RuntimeError as e:
-        # 捕获 API 错误（如 402），返回友好提示
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(e),
-        ) from e
-    return {"answer": answer, "contexts": []}
+    # try:
+    #     answer = await zhipuai_client.chat(
+    #         [
+    #             {
+    #                 "role": "user",
+    #                 "content": f"请回答下面的问题，并在不知道时直接只说不知道：\n问题：{question}",
+    #             }
+    #         ]
+    #     )
+    # except RuntimeError as e:
+    #     # 捕获 API 错误（如 402），返回友好提示
+    #     raise HTTPException(
+    #         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+    #         detail=str(e),
+    #     ) from e
+    # return {"answer": answer, "contexts": []}
+    return {"answer": "知识库中不存在相关内容，无法回答", "contexts": []}
 
 
 class QARequestBody:

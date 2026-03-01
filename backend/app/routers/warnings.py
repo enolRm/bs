@@ -61,12 +61,14 @@ def get_unprocessed_count(db: Session = Depends(get_db)):
     return {"count": count}
 
 @router.delete("/{warning_id}")
-def delete_warning(warning_id: int, db: Session = Depends(get_db)):
+async def delete_warning(warning_id: int, db: Session = Depends(get_db)):
     warning = db.query(WarningMessage).filter(WarningMessage.id == warning_id).first()
     if not warning:
         raise HTTPException(status_code=404, detail="Warning not found")
     db.delete(warning)
     db.commit()
+    # 广播最新计数
+    await manager.broadcast_count(db)
     return {"message": "Warning deleted"}
 
 @router.post("/{warning_id}/process")

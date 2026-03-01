@@ -18,12 +18,12 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
   confirmText = "知道了",
   type = "info"
 }) => {
-  const getColor = () => {
+  const getThemeClasses = () => {
     switch (type) {
-      case "error": return "#f44336";
-      case "success": return "#4caf50";
-      case "warning": return "#ff9800";
-      default: return "#1976d2";
+      case "error": return "bg-red-600 hover:bg-red-700";
+      case "success": return "bg-green-600 hover:bg-green-700";
+      case "warning": return "bg-amber-600 hover:bg-amber-700";
+      default: return "bg-primary-600 hover:bg-primary-700";
     }
   };
 
@@ -35,25 +35,16 @@ export const AlertDialog: React.FC<AlertDialogProps> = ({
       footer={
         <button 
           onClick={onClose}
-          style={{ 
-            width: "100%", 
-            marginTop: 12, 
-            padding: "10px", 
-            background: getColor(), 
-            color: "#fff", 
-            border: "none", 
-            borderRadius: 4, 
-            cursor: "pointer",
-            fontSize: "14px"
-          }}
+          className={`w-full py-3 text-white rounded-xl text-sm font-bold shadow-md transition-all active:scale-95 ${getThemeClasses()}`}
         >
           {confirmText}
         </button>
       }
     >
-      <div style={{ fontSize: "16px", lineHeight: "1.6", whiteSpace: "pre-wrap" }}>
+      <div className="text-gray-700 leading-relaxed whitespace-pre-wrap py-2">
         {message}
       </div>
     </Modal>
   );
 };
+

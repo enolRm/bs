@@ -14,6 +14,7 @@ from ..blockchain import get_blockchain_client
 from ..verification_scheduler import schedule_verification
 from ..vector_store import vector_store
 from ..utils import calc_knowledge_hash
+from .warnings import manager
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 logger = logging.getLogger(__name__)
@@ -40,6 +41,7 @@ def create_knowledge(
         content=payload.content,
         content_hash=knowledge_hash,
         source=payload.source,
+        submitter_address="tester", # TODO
         status=models.KnowledgeStatus.PENDING,
         voting_deadline=datetime.now(timezone.utc) + timedelta(seconds=duration_sec)
     )
@@ -63,7 +65,7 @@ def create_knowledge(
                 id=chain_id,   # 设置链上知识ID，为避免冲突，在本地id后添加6位随机数
                 content_hash=knowledge_hash,
                 source_credential=payload.source or "",
-                submitter="TODO: get actual submitter from auth context",  # 替换为实际提交者
+                submitter="tester",  # 替换为实际提交者
                 timestamp_ms=timestamp_ms,
                 vote_duration_ms=duration_ms,
             )
@@ -142,7 +144,7 @@ def update_knowledge(
                 duration_sec = v_duration * unit_map.get(v_unit, 1)
                 duration_ms = duration_sec * 1000
 
-                operator = "system_operator" # Placeholder
+                operator = "tester" # Placeholder
                 timestamp_ms = int(time.time() * 1000)
 
                 client = get_blockchain_client()
@@ -158,6 +160,7 @@ def update_knowledge(
                 )
                 # If blockchain update is successful, commit local changes
                 knowledge.content_hash = new_knowledge_hash # Update local hash
+                knowledge.submitter_address = operator      # 更新当前版本作者
                 knowledge.status = models.KnowledgeStatus.PENDING   # 状态变更为待验证
                 knowledge.voting_deadline = datetime.now(timezone.utc) + timedelta(seconds=duration_sec)
                 
@@ -209,7 +212,7 @@ def update_knowledge(
 
 
 @router.delete("/{knowledge_id}", summary="删除知识")
-def delete_knowledge(
+async def delete_knowledge(
     knowledge_id: int,
     db: Session = Depends(get_db),
 ):
@@ -232,7 +235,7 @@ def delete_knowledge(
             
             # 使用一个标记为删除的内容哈希
             delete_hash = f"DELETED_{knowledge.content_hash}"
-            operator = "system_operator"
+            operator = "tester" # Placeholder
             timestamp_ms = int(time.time() * 1000)
 
             client = get_blockchain_client()
@@ -275,6 +278,9 @@ def delete_knowledge(
         db.delete(knowledge)
         db.commit()
         logger.info("已从本地数据库删除知识 (id: %s)", knowledge_id)
+
+        # 广播更新小红点计数
+        await manager.broadcast_count(db)
     except Exception as e:
         db.rollback()
         logger.error("本地数据库删除失败: %s", e)

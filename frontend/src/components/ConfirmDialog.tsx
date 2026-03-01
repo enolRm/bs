@@ -28,42 +28,28 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       title={title}
       onClose={onCancel}
       footer={
-        <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
+        <div className="flex w-full space-x-3">
           <button 
             onClick={onCancel}
-            style={{ 
-              flex: 1,
-              padding: "10px", 
-              background: "#f5f5f5", 
-              border: "1px solid #ddd", 
-              borderRadius: 4, 
-              cursor: "pointer",
-              fontSize: "14px"
-            }}
+            className="flex-1 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-50 transition-all active:scale-95"
           >
             {cancelText}
           </button>
           <button 
             onClick={onConfirm}
-            style={{ 
-              flex: 1,
-              padding: "10px", 
-              background: isDanger ? "#f44336" : "#1976d2", 
-              color: "#fff", 
-              border: "none", 
-              borderRadius: 4, 
-              cursor: "pointer",
-              fontSize: "14px"
-            }}
+            className={`flex-1 py-2.5 text-white rounded-xl text-sm font-bold shadow-md transition-all active:scale-95 ${
+              isDanger ? "bg-red-600 hover:bg-red-700" : "bg-primary-600 hover:bg-primary-700"
+            }`}
           >
             {confirmText}
           </button>
         </div>
       }
     >
-      <div style={{ fontSize: "16px", lineHeight: "1.6", whiteSpace: "pre-wrap" }}>
+      <div className="text-gray-700 leading-relaxed whitespace-pre-wrap py-2">
         {message}
       </div>
     </Modal>
   );
 };
+

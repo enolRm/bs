@@ -36,8 +36,8 @@ def vote_knowledge_onchain(
         )
 
     support = bool(body.get("support", True))
-    voter = body.get("voter", "TODO: 1") # TODO: 替换为实际投票者
-    voter_role = int(body.get("voter_role", 0)) # 0: Normal, 1: Expert, 2: Admin
+    voter = body.get("voter", "tester") # TODO: 替换为实际投票者
+    voter_role = int(body.get("voter_role", 0)) # TODO 0: Normal, 1: Expert, 2: Admin
 
     client = get_blockchain_client()
     # 获取数据库中的 verify_id
