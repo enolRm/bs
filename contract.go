@@ -520,22 +520,18 @@ func (kc *KnowledgeContract) JudgeVerificationResult(stub shim.CMStubInterface) 
 		return shim.Error("unmarshal knowledge failed: " + err.Error())
 	}
 
-	// 计算投票比例（阈值：通过≥70%，驳回＞40%）
+	// 计算投票比例（阈值：同意加权比例 > 70% 则通过，其他情况均拒绝）
 	var newStatus KnowledgeStatus
 	approveRatio := float64(0)
-	rejectRatio := float64(0)
 	if vote.TotalVotes > 0 {
 		approveRatio = float64(vote.ApproveVotes) / float64(vote.TotalVotes)
-		rejectRatio = float64(vote.RejectVotes) / float64(vote.TotalVotes)
 	}
 
 	if approveRatio >= 0.7 {
 		newStatus = StatusApproved
-	} else if rejectRatio > 0.4 {
-		newStatus = StatusRejected
 	} else {
-		// 未达阈值，保持待验证
-		newStatus = StatusPending
+		// 同意加权比例未超过 70%，或者没有人投票，均视为拒绝
+		newStatus = StatusRejected
 	}
 
 	// 更新知识状态
@@ -553,7 +549,7 @@ func (kc *KnowledgeContract) JudgeVerificationResult(stub shim.CMStubInterface) 
 	if newStatus == StatusApproved {
 		stub.EmitEvent("KnowledgeVerified", []string{vote.KnowledgeID, strconv.FormatFloat(approveRatio, 'f', 2, 64)})
 	} else if newStatus == StatusRejected {
-		stub.EmitEvent("KnowledgeRejected", []string{vote.KnowledgeID, strconv.FormatFloat(rejectRatio, 'f', 2, 64)})
+		stub.EmitEvent("KnowledgeRejected", []string{vote.KnowledgeID, strconv.FormatFloat(approveRatio, 'f', 2, 64)})
 	}
 
 	stub.Log("[judgeVerificationResult] success, knowledgeID: " + vote.KnowledgeID + ", status: " + strconv.Itoa(int(newStatus)))
