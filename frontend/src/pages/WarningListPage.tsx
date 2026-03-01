@@ -151,5 +151,6 @@ export const WarningListPage: React.FC = () => {
 const cellStyle: React.CSSProperties = {
   border: "1px solid #ddd",
   padding: 8,
-  textAlign: "left"
+  textAlign: "left",
+  whiteSpace: "pre-wrap"
 };

@@ -101,7 +101,7 @@ async def qa_endpoint(
                 
                 # 校验状态 (链上 Status 1 为 Approved)
                 if chain_k.get("status") != 1:
-                    error_msg = f"知识 {k.id} 链上状态不匹配:\n 本地=1 (Approved), 链上='{chain_k.get('status')}'"
+                    error_msg = f"知识 {k.id} 链上状态不匹配:\n本地=1 (Approved), 链上='{chain_k.get('status')}'"
                     logger.warning(error_msg)
                     db.add(WarningMessage(knowledge_id=k.id, chain_id=k.chain_id, error_message=error_msg))
                     db.commit()
@@ -111,7 +111,7 @@ async def qa_endpoint(
                 # 校验字段一致性
                 # 1. 验证ID
                 if k.verification_id != chain_k.get("verification_id"):
-                    error_msg = f"知识 {k.id} 验证ID不一致:\n 本地='{k.verification_id}', 链上='{chain_k.get('verification_id')}'"
+                    error_msg = f"知识 {k.id} 验证ID不一致:\n本地='{k.verification_id}', 链上='{chain_k.get('verification_id')}'"
                     logger.warning(error_msg)
                     db.add(WarningMessage(knowledge_id=k.id, chain_id=k.chain_id, error_message=error_msg))
                     db.commit()
@@ -124,7 +124,7 @@ async def qa_endpoint(
                 
                 # a. 与本地数据库存储的哈希比对 (确保本地数据内部一致)
                 if recalc_hash != k.content_hash:
-                    error_msg = f"知识 {k.id} 根据本地内容重新计算的哈希与本地存储哈希不一致:\n 计算值='{recalc_hash}', 存储值='{k.content_hash}'"
+                    error_msg = f"知识 {k.id} 根据本地内容重新计算的哈希与本地存储哈希不一致:\n计算值='{recalc_hash}', 存储值='{k.content_hash}'"
                     logger.warning(error_msg)
                     db.add(WarningMessage(knowledge_id=k.id, chain_id=k.chain_id, error_message=error_msg))
                     db.commit()
@@ -133,7 +133,7 @@ async def qa_endpoint(
                 
                 # b. 与链上记录的数据比对 (确保链上链下数据一致)
                 if recalc_hash != chain_k.get("content_hash"):
-                    error_msg = f"知识 {k.id} 根据本地内容重新计算的哈希与链上哈希不一致:\n 计算值='{recalc_hash}', 链上值='{chain_k.get('content_hash')}'"
+                    error_msg = f"知识 {k.id} 根据本地内容重新计算的哈希与链上哈希不一致:\n计算值='{recalc_hash}', 链上值='{chain_k.get('content_hash')}'"
                     logger.warning(error_msg)
                     db.add(WarningMessage(knowledge_id=k.id, chain_id=k.chain_id, error_message=error_msg))
                     db.commit()

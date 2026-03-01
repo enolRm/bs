@@ -151,7 +151,7 @@ export const VectorListPage: React.FC = () => {
                     <td style={{ border: "1px solid #ddd", padding: 8, overflow: "hidden", textOverflow: "ellipsis" }}>{metadata.title || "-"}</td>
                     <td style={{ border: "1px solid #ddd", padding: 8, overflow: "hidden", textOverflow: "ellipsis" }}>{metadata.source || "-"}</td>
                     <td style={{ border: "1px solid #ddd", padding: 8 }}>
-                      <div style={{ maxHeight: 200, overflowY: "auto", wordBreak: "break-all" }}>
+                      <div style={{ maxHeight: 200, overflowY: "auto", wordBreak: "break-all", whiteSpace: "pre-wrap" }}>
                         {data.documents[index]}
                       </div>
                     </td>
