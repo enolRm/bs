@@ -328,6 +328,23 @@ export const TracePage: React.FC = () => {
                   />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">来源</label>
+                  <input
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all bg-white"
+                    value={editSource}
+                    onChange={(e) => setEditSource(e.target.value)}
+                    placeholder="例如：网址链接、文档名称..."
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">正文内容</label>
+                  <textarea
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all min-h-[160px] bg-white resize-y"
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">投票时长</label>
                   <div className="flex space-x-2">
                     <input
@@ -348,14 +365,6 @@ export const TracePage: React.FC = () => {
                       <option value="d">日 (Days)</option>
                     </select>
                   </div>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">正文内容</label>
-                  <textarea
-                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none transition-all min-h-[160px] bg-white resize-y"
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                  />
                 </div>
                 <div className="md:col-span-2 flex gap-3 pt-2">
                   <button
