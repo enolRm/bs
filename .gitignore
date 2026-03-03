@@ -37,6 +37,7 @@ Thumbs.db
 # Backend-specific
 backend/__pycache__/
 backend/*.sqlite3
+backend/.env
 backend/vector_store/chroma.sqlite3
 backend/vector_store/*/
 
