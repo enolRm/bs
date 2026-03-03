@@ -1,85 +1,97 @@
-## 基于区块链与 RAG 的可信大模型知识库系统
+# 基于区块链与 RAG 的可信大模型知识库系统
 
-本项目为毕业设计示例工程，实现一个基于「本地私链 + 本地向量库 + 智谱AI 模型 API」的可信知识库 Web 系统，支持：
+本项目是一个基于 **腾讯云 TBAAS (长安链 ChainMaker)** 和 **RAG (Retrieval-Augmented Generation)** 架构的可信知识库系统。它旨在解决大模型在特定垂直领域应用中的「幻觉」问题，同时利用区块链技术确保知识库数据的可信性、不可篡改性和可追溯性。
 
-- 可信知识上链存证与追溯
-- 多主体知识投票验证
-- 链上已验证知识与向量库同步
-- 基于 RAG 的大模型问答（智谱AI API）
+## 核心功能
 
-### 项目结构（初稿）
+- **可信知识存证**：所有知识提交后先经过区块链存证（内容哈希 + 元数据），确保原始数据不可篡改。
+- **多方验证与治理**：知识上链后进入验证期，支持多主体（如专家、管理员）进行投票验证，确保知识库的准确性。
+- **自动化 RAG 同步**：仅有经过区块链验证通过的知识，才会自动同步至本地向量数据库（ChromaDB），供大模型检索。
+- **智能问答（RAG + GLM-4）**：结合检索到的可信知识片段，调用智谱AI GLM-4 模型生成高质量、有据可查的回答。
+- **知识追溯与审计**：提供完整的知识更新轨迹和链上投票详情，每一条知识的来源和验证过程均可溯源。
 
-- `contracts/`：Solidity 智能合约与 Hardhat 工程（本地私链）
-- `backend/`：Python 后端（FastAPI），负责：
-  - 提供 Web API（知识提交、验证、检索、问答等）
-  - 与本地私链交互，监听链上事件
-  - 维护本地数据库与向量库
-  - 调用 智谱AI 大模型 API
-- `frontend/`：前端 Web 应用（暂定 React），提供：
-  - 知识提交与查看
-  - 知识验证投票
-  - 问答页面（RAG + 大模型）
-  - 知识追溯与详情展示
+## 技术栈
 
-### 环境与依赖（后续细化）
+- **前端**：React + Vite + Tailwind CSS + Lucide Icons + React Router
+- **后端**：Python (FastAPI) + SQLAlchemy (SQLite) + ChromaDB (Vector DB) + ZhipuAI SDK
+- **区块链**：腾讯云 TBAAS (长安链 ChainMaker 演示环境) + Go 合约开发 (ChainMaker SDK)
+- **大模型**：智谱AI GLM-4 / Embedding-2
+
+## 项目结构
+
+```text
+.
+├── backend/            # FastAPI 后端工程
+│   ├── app/            # 应用逻辑（路由、区块链交互、RAG 等）
+│   ├── requirements.txt # 后端依赖
+│   └── .env            # 环境变量配置（需自行创建）
+├── frontend/           # React 前端工程
+│   ├── src/            # 前端源码
+│   ├── package.json    # 前端依赖与脚本
+│   └── index.html      # 入口 HTML
+├── contract.go         # 长安链 ChainMaker 合约代码 (Go)
+└── README.md           # 项目说明文档
+```
+
+## 快速开始
+
+### 1. 前置条件
 
 - Python 3.10+
-- Node.js 18+（用于前端与 Hardhat）
-- 本地私链：Hardhat / Ganache（二选一，代码将以 Hardhat 为主）
-- 本地向量库：优先使用 `chromadb`（纯 Python，部署简单）
+- Node.js 18+
+- 腾讯云 TBAAS 账户（或具备兼容 ChainMaker 的区块链环境）
+- 智谱AI API Key ([获取地址](https://bigmodel.cn/))
 
-### 合约开发（Hardhat）
+### 2. 后端配置
 
-在 `contracts/` 目录下：
+1. 进入 `backend` 目录，安装依赖：
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. 创建 `.env` 文件，并根据实际情况配置以下变量：
+   ```env
+   # 智谱AI 配置
+   ZHIPUAI_API_KEY=你的实际密钥
+   ZHIPUAI_MODEL=glm-4
+   ZHIPUAI_EMBED_MODEL=embedding-2
 
-1. 安装依赖
+   # TBAAS 腾讯云长安链配置
+   TBAAS_SECRET_ID=你的腾讯云SecretID
+   TBAAS_SECRET_KEY=你的腾讯云SecretKey
+   TBAAS_CLUSTER_ID=chainmaker-demo
+   TBAAS_CHAIN_ID=chain_demo
+   TBAAS_CONTRACT_NAME=bs
 
-```bash
-npm install
-```
+   # 数据库与向量库
+   DATABASE_URL=sqlite:///./knowledge.db
+   VECTOR_DB_DIR=./vector_store
+   ```
+3. 启动后端服务：
+   ```bash
+   uvicorn app.main:app --reload
+   ```
 
-2. 启动本地私链节点（保持窗口不关闭）
+### 3. 前端配置
 
-```bash
-npm run node
-```
+1. 进入 `frontend` 目录，安装依赖：
+   ```bash
+   npm install
+   ```
+2. 启动前端开发服务器：
+   ```bash
+   npm run dev
+   ```
+3. 访问 `http://localhost:5173` 即可进入系统。
 
-3. 编译合约（生成 ABI/Artifact）
+## 核心流程说明
 
-```bash
-npx hardhat compile
-```
+1. **知识提交**：用户提交知识内容，系统生成内容哈希并调用腾讯云 TBAAS API 将元数据存证上链。
+2. **知识验证**：在区块链上进行投票治理。管理员或专家在前端「验证列表」中对未入库知识进行审核。
+3. **入库同步**：验证通过后，后端 `verification_scheduler.py`（或手动触发）会将链上通过的知识内容拉取并同步到 ChromaDB。
+4. **问答检索**：用户提问时，系统首先在 ChromaDB 中检索相关可信知识片段，将其作为 Context 喂给 GLM-4 模型生成最终回答。
 
-4. 部署合约到本地私链
+## 安全与注意事项
 
-```bash
-npm run deploy
-```
-
-部署成功后会输出合约地址。把它写入 `backend/.env`：
-
-- `WEB3_RPC_URL=http://127.0.0.1:8545`
-- `CONTRACT_ADDRESS=0x...`（替换为实际地址）
-
-若希望「提交知识」时自动上链并得到链上 ID（便于在验证页进行链上投票），还需配置代签名账户（与 Hardhat 本地节点账户一致即可）：
-
-- `CHAIN_SENDER_ADDRESS=0x...`（本地链第一个账户地址，如 `npx hardhat node` 输出中的 Account #0）
-- `CHAIN_SENDER_PRIVATE_KEY=0x...`（该账户私钥）
-
-未配置上述两项时，提交仅保存到本地数据库，不会上链，验证页可使用「通过并入库」简化流程。
-
-后端默认 ABI 路径为：
-
-- `../contracts/artifacts/contracts/KnowledgeStorage.sol/KnowledgeStorage.json`
-
-
-### 安全说明
-
-- **智谱AI 的 API Key 不会写入代码仓库**，请在本地使用环境变量或 `.env` 文件配置，例如：
-  - Windows PowerShell：
-    - `$env:ZHIPUAI_API_KEY="你的实际密钥"`
-  - 或在 `backend/.env` 中写入（此文件请勿提交到版本管理）：
-    - `ZHIPUAI_API_KEY=你的实际密钥`
-
-后续会在 `backend/` 与 `contracts/` 中给出详细模块说明与接口设计，并逐步完善实现。
-
+- **敏感信息**：请勿将包含 `ZHIPUAI_API_KEY` 或 `TBAAS_SECRET_KEY` 的 `.env` 文件提交到代码仓库。
+- **区块链环境**：本项目目前针对腾讯云 TBAAS 的 ChainMaker 演示环境进行了适配，如需对接其他 Fabric 或长安链环境，请修改 `backend/app/blockchain.py`。
+- **向量库持久化**：ChromaDB 默认持久化在 `backend/vector_store`，如需重置，请删除该文件夹。
