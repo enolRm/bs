@@ -9,4 +9,8 @@ pydantic
 web3
 scikit-learn
 zhipuai
+pysqlite3-binary
+sniffio
+anyio
+pysqlite3-binary
 
