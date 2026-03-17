@@ -6,6 +6,7 @@ import { QAPage } from "./pages/QAPage";
 import { TracePage } from "./pages/TracePage";
 import { VectorListPage } from "./pages/VectorListPage";
 import { WarningListPage } from "./pages/WarningListPage";
+import { DBAdminPage } from "./pages/DBAdminPage";
 import { knowledgeApi } from "./api";
 import "./index.css";
 
@@ -103,8 +104,11 @@ const App: React.FC = () => {
                   <NavLink to="/qa">智能问答</NavLink>
                   <NavLink to="/submit">知识提交</NavLink>
                   <NavLink to="/trace">知识列表</NavLink>
-                  <NavLink to="/vector">向量列表</NavLink>
-                  <NavLink to="/warnings" badge={unprocessedCount}>警告信息</NavLink>
+                  <NavLink to="/vector">向量列库</NavLink>
+                  <NavLink to="/warnings" badge={unprocessedCount}>
+                    警告信息
+                  </NavLink>
+                  <NavLink to="/db-admin">数据库(演示用)</NavLink>
                 </nav>
               </div>
             </div>
@@ -119,6 +123,7 @@ const App: React.FC = () => {
               <Route path="/qa" element={<QAPage />} />
               <Route path="/trace" element={<TracePage />} />
               <Route path="/vector" element={<VectorListPage />} />
+              <Route path="/db-admin" element={<DBAdminPage />} />
               <Route path="/warnings" element={<WarningListPage />} />
             </Routes>
           </div>

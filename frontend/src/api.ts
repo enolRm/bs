@@ -86,3 +86,35 @@ export const knowledgeApi = {
   },
 };
 
+export const dbAdminApi = {
+  listTables: async () => {
+    const res = await api.get<string[]>("/db-admin/tables");
+    return res.data;
+  },
+  getTableData: async (tableName: string, page: number = 1, pageSize: number = 20) => {
+    const res = await api.get<{
+      table_name: string;
+      columns: string[];
+      total_count: number;
+      page: number;
+      page_size: number;
+      data: any[];
+    }>(`/db-admin/tables/${tableName}/data`, {
+      params: { page, page_size: pageSize }
+    });
+    return res.data;
+  },
+  deleteRow: async (tableName: string, rowId: number, idColumn: string = "id") => {
+    const res = await api.delete(`/db-admin/tables/${tableName}/rows/${rowId}`, {
+      params: { id_column: idColumn }
+    });
+    return res.data;
+  },
+  updateRow: async (tableName: string, rowId: number, data: any, idColumn: string = "id") => {
+    const res = await api.put(`/db-admin/tables/${tableName}/rows/${rowId}`, data, {
+      params: { id_column: idColumn }
+    });
+    return res.data;
+  }
+};
+

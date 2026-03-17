@@ -16,6 +16,7 @@ from .routers import qa as qa_router
 from .routers import verification as verification_router
 from .routers import vector as vector_router
 from .routers import warnings as warnings_router
+from .routers import db_admin as db_admin_router
 
 
 def create_app() -> FastAPI:
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(qa_router.router, prefix=settings.API_V1_PREFIX)
     app.include_router(vector_router.router, prefix=settings.API_V1_PREFIX)
     app.include_router(warnings_router.router, prefix=settings.API_V1_PREFIX)
+    app.include_router(db_admin_router.router, prefix=settings.API_V1_PREFIX)
 
     # TODO:
 
