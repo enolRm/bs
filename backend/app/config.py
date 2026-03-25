@@ -34,6 +34,14 @@ class Settings:
     # 向量库
     VECTOR_DB_DIR: str = os.getenv("VECTOR_DB_DIR", "./vector_store")
 
+    # JWT 认证
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-for-development")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
+    # 签名验证
+    SIGNATURE_MESSAGE_TEMPLATE: str = "Welcome to Trusted RAG Knowledge Base. Please sign this message to login: {nonce}"
+
 
 @lru_cache
 def get_settings() -> Settings:

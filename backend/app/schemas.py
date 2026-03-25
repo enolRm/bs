@@ -6,6 +6,28 @@ from pydantic import BaseModel, Field, field_validator
 from .models import KnowledgeStatus
 
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    address: Optional[str] = None
+
+
+class UserAuth(BaseModel):
+    address: str
+
+
+class NonceResponse(BaseModel):
+    nonce: str
+
+
+class LoginRequest(BaseModel):
+    address: str
+    signature: str
+
+
 class KnowledgeCreate(BaseModel):
     title: str = Field(..., max_length=255)
     content: str

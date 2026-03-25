@@ -15,6 +15,7 @@ from ..verification_scheduler import schedule_verification
 from ..vector_store import vector_store
 from ..utils import calc_knowledge_hash
 from .warnings import manager
+from ..dependencies import get_current_user
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 logger = logging.getLogger(__name__)
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 def create_knowledge(
     payload: schemas.KnowledgeCreate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ) -> schemas.KnowledgeOut:
     """
     提交知识：
@@ -41,7 +43,7 @@ def create_knowledge(
         content=payload.content,
         content_hash=knowledge_hash,
         source=payload.source,
-        submitter_address="tester", # TODO
+        submitter_address=current_user.address,
         status=models.KnowledgeStatus.PENDING,
         voting_deadline=datetime.now(timezone.utc) + timedelta(seconds=duration_sec)
     )
@@ -65,7 +67,7 @@ def create_knowledge(
                 id=chain_id,   # 设置链上知识ID，为避免冲突，在本地id后添加6位随机数
                 content_hash=knowledge_hash,
                 source_credential=payload.source or "",
-                submitter="tester",  # 替换为实际提交者
+                submitter=current_user.address,
                 timestamp_ms=timestamp_ms,
                 vote_duration_ms=duration_ms,
             )
@@ -104,6 +106,7 @@ def update_knowledge(
     knowledge_id: int,
     payload: schemas.KnowledgeUpdate,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ) -> schemas.KnowledgeOut:
     """
     更新知识：仅更新提供的字段。
@@ -112,6 +115,11 @@ def update_knowledge(
     knowledge = db.query(models.Knowledge).filter(models.Knowledge.id == knowledge_id).first()
     if not knowledge:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识不存在")
+
+    operator = current_user.address
+    # 映射角色
+    role_map = {"normal": "0", "expert": "1", "admin": "2"}
+    operator_role = role_map.get(current_user.role, "0")
 
     # Store original data for history if content changes
     old_title = knowledge.title
@@ -144,7 +152,6 @@ def update_knowledge(
                 duration_sec = v_duration * unit_map.get(v_unit, 1)
                 duration_ms = duration_sec * 1000
 
-                operator = "tester" # Placeholder
                 timestamp_ms = int(time.time() * 1000)
 
                 client = get_blockchain_client()
@@ -153,7 +160,7 @@ def update_knowledge(
                     new_content_hash=new_knowledge_hash, # Use the new combined hash
                     new_source_credential=knowledge.source or "",
                     operator=operator,
-                    operator_role="2",  # Placeholder
+                    operator_role=operator_role,
                     new_update_record_hash=old_knowledge_hash, # Use old hash for history tracing
                     timestamp_ms=timestamp_ms,
                     vote_duration_ms=duration_ms,
@@ -215,6 +222,7 @@ def update_knowledge(
 async def delete_knowledge(
     knowledge_id: int,
     db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
 ):
     """
     删除知识：

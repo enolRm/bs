@@ -14,6 +14,8 @@ from ..vector_store import vector_store
 from ..config import settings
 from ..blockchain import get_blockchain_client
 from ..verification_scheduler import verify_knowledge_logic
+from ..dependencies import get_current_user
+from ..models import User
 
 router = APIRouter(prefix="/verification", tags=["verification"])
 logger = logging.getLogger(__name__)
@@ -23,11 +25,12 @@ logger = logging.getLogger(__name__)
 def vote_knowledge_onchain(
     knowledge_id: int,
     body: dict,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """
     链上投票接口（演示用）：
-    - body: {"support": true/false, "voter": "voter_address", "voter_role": 0/1/2}
+    - body: {"support": true/false}
     """
     if not settings.TBAAS_SECRET_ID or not settings.TBAAS_SECRET_KEY:
         raise HTTPException(
@@ -36,8 +39,15 @@ def vote_knowledge_onchain(
         )
 
     support = bool(body.get("support", True))
-    voter = body.get("voter", "tester") # TODO: 替换为实际投票者
-    voter_role = int(body.get("voter_role", 0)) # TODO 0: Normal, 1: Expert, 2: Admin
+    voter = current_user.address
+    
+    # 映射角色：将 Enum 值映射为链上合约需要的整数
+    role_map = {
+        UserRole.NORMAL: 0,
+        UserRole.EXPERT: 1,
+        UserRole.ADMIN: 2
+    }
+    voter_role = role_map.get(current_user.role, 0)
 
     client = get_blockchain_client()
     # 获取数据库中的 verify_id

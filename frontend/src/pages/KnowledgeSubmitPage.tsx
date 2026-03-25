@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { api, Knowledge } from "../api";
+import { useAuth } from "../hooks/useAuth";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const KNOWLEDGE_SUBMIT_STORAGE_KEY = "knowledge_submit_form";
 
 export const KnowledgeSubmitPage: React.FC = () => {
+  const { user, login, loading: authLoading } = useAuth();
+  
+  const [showLoginConfirm, setShowLoginConfirm] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
   // 从 localStorage 加载初始状态
   const savedForm = localStorage.getItem(KNOWLEDGE_SUBMIT_STORAGE_KEY);
   const initialForm = savedForm ? JSON.parse(savedForm) : {};
@@ -27,6 +33,10 @@ export const KnowledgeSubmitPage: React.FC = () => {
   }, [title, source, content, voteDuration, voteUnit]);
 
   const submit = async () => {
+    if (!user) {
+      setShowLoginConfirm(true);
+      return;
+    }
     setLoading(true);
     setError(null);
     setResult(null);
@@ -51,6 +61,19 @@ export const KnowledgeSubmitPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (user && pendingSubmit) {
+      setPendingSubmit(false);
+      submit();
+    }
+  }, [user, pendingSubmit]);
+
+  const handleConfirmLogin = () => {
+    setShowLoginConfirm(false);
+    setPendingSubmit(true);
+    login();
+  };
+
   return (
     <div className="p-6 md:p-8">
       <div className="flex items-center mb-8">
@@ -63,7 +86,7 @@ export const KnowledgeSubmitPage: React.FC = () => {
       </div>
 
       <div className="max-w-3xl space-y-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-sm font-semibold text-gray-700 block">知识标题</label>
             <input
@@ -209,6 +232,15 @@ export const KnowledgeSubmitPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        show={showLoginConfirm}
+        title="需要连接钱包登录"
+        message="请先连接钱包后再提交知识。是否现在连接？"
+        onConfirm={handleConfirmLogin}
+        onCancel={() => setShowLoginConfirm(false)}
+        confirmText="立即连接"
+      />
     </div>
   );
 };

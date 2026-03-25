@@ -2,10 +2,16 @@ import React, { useEffect, useState } from "react";
 import { api, Knowledge, KnowledgeHistoryItem, VoteDetails } from "../api";
 import { Modal } from "../components/Modal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useAuth } from "../hooks/useAuth";
 
 type PendingAction = "vote_yes" | "vote_no" | null;
 
 export const TracePage: React.FC = () => {
+  const { user, login: authLogin, loading: authLoading } = useAuth();
+  
+  const [showLoginConfirm, setShowLoginConfirm] = useState(false);
+  const [pendingAction, setPendingActionState] = useState<{ type: "vote" | "update" | "delete"; params: any } | null>(null);
+
   const [items, setItems] = useState<Knowledge[]>([]);
   const [selected, setSelected] = useState<Knowledge | null>(null);
   const [history, setHistory] = useState<KnowledgeHistoryItem[]>([]);
@@ -58,7 +64,31 @@ export const TracePage: React.FC = () => {
       .catch(() => setHistory([]));
   }, [selected]);
 
+  useEffect(() => {
+    if (user && pendingAction) {
+      const { type, params } = pendingAction;
+      setPendingActionState(null);
+      if (type === "vote") {
+        vote(params.id, params.support);
+      } else if (type === "update") {
+        saveUpdate();
+      } else if (type === "delete") {
+        handleDelete();
+      }
+    }
+  }, [user, pendingAction]);
+
+  const handleConfirmLogin = () => {
+    setShowLoginConfirm(false);
+    authLogin();
+  };
+
   const vote = async (knowledgeId: number, support: boolean) => {
+    if (!user) {
+      setPendingActionState({ type: "vote", params: { id: knowledgeId, support } });
+      setShowLoginConfirm(true);
+      return;
+    }
     setError(null);
     setLastResult(null);
     // 注意：这里为了兼容性，pending 里的 chainId 我们暂时存为 string 或 null，
@@ -114,8 +144,14 @@ export const TracePage: React.FC = () => {
 
   const saveUpdate = async () => {
     if (!selected) return;
+    if (!user) {
+      setPendingActionState({ type: "update", params: {} });
+      setShowLoginConfirm(true);
+      return;
+    }
     setSaving(true);
     setError(null);
+    setLastResult(null);
     try {
       const payload: { 
         title?: string; 
@@ -155,6 +191,11 @@ export const TracePage: React.FC = () => {
 
   const handleDelete = () => {
     if (!selected) return;
+    if (!user) {
+      setPendingActionState({ type: "delete", params: {} });
+      setShowLoginConfirm(true);
+      return;
+    }
     setShowDeleteConfirm(true);
   };
 
@@ -586,6 +627,18 @@ export const TracePage: React.FC = () => {
         onConfirm={confirmDelete}
         onCancel={() => setShowDeleteConfirm(false)}
         isDanger={true}
+      />
+
+      <ConfirmDialog
+        show={showLoginConfirm}
+        title="需要连接钱包登录"
+        message="请先连接钱包后再进行操作。是否现在连接？"
+        onConfirm={handleConfirmLogin}
+        onCancel={() => {
+          setShowLoginConfirm(false);
+          setPendingActionState(null);
+        }}
+        confirmText="立即连接"
       />
     </div>
   );

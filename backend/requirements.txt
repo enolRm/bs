@@ -7,10 +7,9 @@ httpx
 chromadb
 pydantic
 web3
+PyJWT
 scikit-learn
 zhipuai
-pysqlite3-binary
 sniffio
 anyio
-pysqlite3-binary
 

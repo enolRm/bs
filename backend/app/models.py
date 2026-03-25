@@ -6,6 +6,21 @@ from sqlalchemy import Column, Integer, String, DateTime, Enum, Text, ForeignKey
 from .db import Base
 
 
+class UserRole(str, PyEnum):
+    NORMAL = "普通用户"
+    EXPERT = "专家"
+    ADMIN = "管理员"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    address = Column(String(64), primary_key=True, index=True)
+    nonce = Column(String(64), nullable=True)
+    role = Column(Enum(UserRole), default=UserRole.NORMAL)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
 class KnowledgeStatus(str, PyEnum):
     PENDING = "pending"
     VERIFIED = "verified"

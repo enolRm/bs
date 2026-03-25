@@ -7,6 +7,17 @@ export const api = axios.create({
   timeout: 30000
 });
 
+// 添加请求拦截器
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => {
+  return Promise.reject(error);
+});
+
 export type Knowledge = {
   id: number;
   chain_id: string | null;
@@ -58,6 +69,24 @@ export type WarningMessage = {
 };
 
 // --- API Functions ---
+
+export const authApi = {
+  getNonce: async (address: string) => {
+    const res = await api.post<{ nonce: string }>("/auth/nonce", { address });
+    return res.data;
+  },
+  login: async (address: string, signature: string) => {
+    const res = await api.post<{ access_token: string; token_type: string }>("/auth/login", {
+      address,
+      signature,
+    });
+    return res.data;
+  },
+  getMe: async () => {
+    const res = await api.get<{ address: string; role: string; created_at: string }>("/auth/me");
+    return res.data;
+  },
+};
 
 export const knowledgeApi = {
   getVectorList: async () => {
