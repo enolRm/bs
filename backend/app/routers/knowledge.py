@@ -116,6 +116,13 @@ def update_knowledge(
     if not knowledge:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识不存在")
 
+    # 校验操作者是否为知识提交者
+    if knowledge.submitter_address != current_user.address:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有知识提交者才能更新知识"
+        )
+
     operator = current_user.address
     # 映射角色
     role_map = {"normal": "0", "expert": "1", "admin": "2"}
@@ -234,6 +241,13 @@ async def delete_knowledge(
     if not knowledge:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="知识不存在")
 
+    # 校验操作者是否为知识提交者
+    if knowledge.submitter_address != current_user.address:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="只有知识提交者才能删除知识"
+        )
+
     # 1. 区块链使数据失效 (如果配置了区块链且知识已上链)
     if settings.TBAAS_SECRET_ID and settings.TBAAS_SECRET_KEY and knowledge.chain_id:
         try:
@@ -243,7 +257,11 @@ async def delete_knowledge(
             
             # 使用一个标记为删除的内容哈希
             delete_hash = f"DELETED_{knowledge.content_hash}"
-            operator = "tester" # Placeholder
+            operator = current_user.address # 使用当前用户地址
+            # 映射角色
+            role_map = {"normal": "0", "expert": "1", "admin": "2"}
+            operator_role = role_map.get(current_user.role, "0")
+            
             timestamp_ms = int(time.time() * 1000)
 
             client = get_blockchain_client()
@@ -252,7 +270,7 @@ async def delete_knowledge(
                 new_content_hash=delete_hash,
                 new_source_credential="DELETED",
                 operator=operator,
-                operator_role="2",
+                operator_role=operator_role,
                 new_update_record_hash=knowledge.content_hash,
                 timestamp_ms=timestamp_ms,
                 vote_duration_ms=duration_ms,

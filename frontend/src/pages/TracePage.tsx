@@ -132,6 +132,8 @@ export const TracePage: React.FC = () => {
     editSource !== (selected.source || "")
   );
 
+  const isSubmitter = selected && user && selected.submitter_address === user.address;
+
   const fetchVoteDetails = async (contentHash: string) => {
     try {
       const resp = await api.get<VoteDetails>(`/verification/votes-by-hash/${contentHash}`);
@@ -407,25 +409,39 @@ export const TracePage: React.FC = () => {
                     </select>
                   </div>
                 </div>
-                <div className="md:col-span-2 flex gap-3 pt-2">
-                  <button
-                    onClick={saveUpdate}
-                    disabled={saving || deleting || !editTitle || !editContent || !hasChanges}
-                    className={`flex-1 py-3 rounded-xl font-bold transition-all ${
-                      saving || deleting || !editTitle || !editContent || !hasChanges
-                        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
-                        : "bg-primary-600 text-white hover:bg-primary-700 shadow-md hover:shadow-lg active:scale-95"
-                    }`}
-                  >
-                    {saving ? "正在同步更新..." : "提交版本更新"}
-                  </button>
-                  <button
-                    onClick={handleDelete}
-                    disabled={saving || deleting}
-                    className="px-6 py-3 border border-red-200 text-red-600 rounded-xl font-bold hover:bg-red-50 transition-all active:scale-95"
-                  >
-                    {deleting ? "删除中..." : "删除"}
-                  </button>
+                <div className="md:col-span-2 flex flex-col gap-3 pt-2">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={saveUpdate}
+                      disabled={saving || deleting || !editTitle || !editContent || !hasChanges || !isSubmitter}
+                      className={`flex-1 py-3 rounded-xl font-bold transition-all ${
+                        saving || deleting || !editTitle || !editContent || !hasChanges || !isSubmitter
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                          : "bg-primary-600 text-white hover:bg-primary-700 shadow-md hover:shadow-lg active:scale-95"
+                      }`}
+                    >
+                      {saving ? "正在同步更新..." : "提交版本更新"}
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={saving || deleting || !isSubmitter}
+                      className={`px-6 py-3 border rounded-xl font-bold transition-all active:scale-95 ${
+                        saving || deleting || !isSubmitter
+                          ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed"
+                          : "border-red-200 text-red-600 hover:bg-red-50"
+                      }`}
+                    >
+                      {deleting ? "删除中..." : "删除"}
+                    </button>
+                  </div>
+                  {selected && !isSubmitter && (
+                     <p className="text-[11px] text-amber-500 flex items-center justify-center mt-1">
+                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                       </svg>
+                       仅知识提交者有权进行更新或删除操作
+                     </p>
+                   )}
                 </div>
               </div>
 
