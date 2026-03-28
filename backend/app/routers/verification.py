@@ -9,13 +9,12 @@ from sqlalchemy.orm import Session
 from .. import schemas
 from ..db import get_db
 from ..embeddings import embed_texts
-from ..models import Knowledge, KnowledgeStatus, Vote
+from ..models import Knowledge, KnowledgeStatus, Vote, User, UserRole
 from ..vector_store import vector_store
 from ..config import settings
 from ..blockchain import get_blockchain_client
 from ..verification_scheduler import verify_knowledge_logic
 from ..dependencies import get_current_user
-from ..models import User
 
 router = APIRouter(prefix="/verification", tags=["verification"])
 logger = logging.getLogger(__name__)
