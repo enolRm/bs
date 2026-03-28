@@ -19,26 +19,6 @@ router = APIRouter(prefix="/qa", tags=["qa"])
 logger = logging.getLogger(__name__)
 
 
-async def _generate_answer_without_context(question: str):
-    # try:
-    #     answer = await zhipuai_client.chat(
-    #         [
-    #             {
-    #                 "role": "user",
-    #                 "content": f"请回答下面的问题，并在不知道时直接只说不知道：\n问题：{question}",
-    #             }
-    #         ]
-    #     )
-    # except RuntimeError as e:
-    #     # 捕获 API 错误（如 402），返回友好提示
-    #     raise HTTPException(
-    #         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-    #         detail=str(e),
-    #     ) from e
-    # return {"answer": answer, "contexts": []}
-    return {"answer": "知识库中不存在相关内容，无法回答", "contexts": []}
-
-
 class QARequestBody:
     question: str
 
@@ -77,7 +57,7 @@ async def qa_endpoint(
             db_knowledges.append(k)
 
     if not db_knowledges:
-        return await _generate_answer_without_context(question)
+        return {"answer": "知识库中不存在相关内容，无法回答", "contexts": []}
 
     # 如果配置了区块链，则进行链上一致性校验
     if settings.TBAAS_SECRET_ID and settings.TBAAS_SECRET_KEY:
@@ -169,7 +149,7 @@ async def qa_endpoint(
 
     # 如果过滤后没有任何“已通过”且“一致”的知识
     if not contexts:
-        return await _generate_answer_without_context(question)
+        return {"answer": "知识库中不存在相关内容，无法回答", "contexts": []}
 
     # 4. 构造 Prompt
     context_text = "\n\n".join(
