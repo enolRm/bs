@@ -185,8 +185,11 @@ def update_knowledge(
                 # 只有原先是已验证状态（已入向量库）的才需要删除
                 if knowledge.chain_id and old_status == models.KnowledgeStatus.VERIFIED:
                     try:
+                        # 删除该 chain_id 下的所有切片
+                        vector_store.delete_by_metadata({"chain_id": str(knowledge.chain_id)})
+                        # 兼容旧版本
                         vector_store.delete_documents(ids=[str(knowledge.chain_id)])
-                        logger.info("已删除知识 %s 的旧向量 (chain_id: %s)", knowledge.id, knowledge.chain_id)
+                        logger.info("已从向量库清理知识 %s 的旧切片 (chain_id: %s)", knowledge.id, knowledge.chain_id)
                     except Exception as e:
                         logger.warning("删除旧向量失败，可能该知识尚未向量化: %s", e)
 
@@ -288,12 +291,17 @@ async def delete_knowledge(
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"区块链端失效操作失败: {e}")
 
     # 2. 向量数据库删除向量
-    if knowledge.chain_id:
-        try:
+    try:
+        # 删除所有切片 (支持按 db_id 或 chain_id)
+        vector_store.delete_by_metadata({"db_id": str(knowledge_id)})
+        if knowledge.chain_id:
+            vector_store.delete_by_metadata({"chain_id": str(knowledge.chain_id)})
+            # 兼容旧版本
             vector_store.delete_documents(ids=[str(knowledge.chain_id)])
-            logger.info("已从向量库删除知识 (chain_id: %s)", knowledge.chain_id)
-        except Exception as e:
-            logger.warning("从向量库删除失败（可能尚未向量化）: %s", e)
+        
+        logger.info("已从向量库删除知识的所有切片 (db_id: %s)", knowledge_id)
+    except Exception as e:
+        logger.warning("从向量库删除失败（可能尚未向量化）: %s", e)
 
     # 3. 本地数据库删除数据
     try:

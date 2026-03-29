@@ -16,6 +16,34 @@ from .vector_store import vector_store
 
 logger = logging.getLogger(__name__)
 
+def split_text(text: str, chunk_size: int = 600, chunk_overlap: int = 100) -> list[str]:
+    """
+    简单的文本切分函数。
+    支持按长度切分，并保留一定的重叠部分以保证上下文连贯。
+    """
+    if not text:
+        return []
+    
+    # 如果文本较短，直接返回
+    if len(text) <= chunk_size:
+        return [text]
+        
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunk = text[start:end]
+        chunks.append(chunk)
+        
+        # 移动起始位置，考虑重叠
+        start += (chunk_size - chunk_overlap)
+        
+        # 如果剩余部分不足以支撑一个新的有意义的 chunk，就停止
+        if len(text) - start < 50: # 剩余太少则合并到最后一个或直接丢弃（此处选择停止）
+            break
+            
+    return chunks
+
 # 全局定时器字典: knowledge_id -> Timer
 _timers: Dict[int, threading.Timer] = {}
 _timers_lock = threading.Lock()
@@ -108,32 +136,53 @@ def verify_knowledge_logic(db: Session, knowledge_id: int):
         # 判断 result_str 中是否包含对应的状态数字
         if "1" in result_str:
             knowledge.status = KnowledgeStatus.VERIFIED
-            # 嵌入知识并加入向量库
+            # 嵌入知识并加入向量库（支持切片以提高检索效果）
             if knowledge.content and knowledge.content.strip():
                 try:
-                    embedding = embed_texts([knowledge.content])[0]
-                    # 在插入前先尝试删除，防止 ID 冲突 (ChromaDB add 如果 ID 已存在会抛异常)
-                    if knowledge.chain_id:
-                        try:
+                    # 1. 清理旧向量
+                    try:
+                        # 删除该知识 ID 下的所有切片
+                        vector_store.delete_by_metadata({"db_id": str(knowledge.id)})
+                        if knowledge.chain_id:
+                            # 兼容旧版本以 chain_id 作为 metadata 的删除
+                            vector_store.delete_by_metadata({"chain_id": str(knowledge.chain_id)})
+                            # 同时也尝试按 ID 删一下（兼容旧版本只存了一个 ID 的情况）
                             vector_store.delete_documents(ids=[str(knowledge.chain_id)])
-                        except Exception:
-                            pass
+                    except Exception:
+                        pass
 
+                    # 2. 切片
+                    # 拼接标题和正文用于向量化
+                    text_to_split = f"{knowledge.title}\n{knowledge.content}" if knowledge.title else knowledge.content
+                    chunks = split_text(text_to_split)
+                    
+                    if not chunks:
+                        chunks = [text_to_split]
+
+                    # 3. 批量嵌入
+                    embeddings = embed_texts(chunks)
+                    
+                    # 4. 批量存入
+                    chunk_ids = [f"{knowledge.id}_chunk_{i}" for i in range(len(chunks))]
+                    metadatas = [
+                        {
+                            "db_id": str(knowledge.id),
+                            "chain_id": str(knowledge.chain_id),
+                            "title": knowledge.title,
+                            "source": knowledge.source,
+                            "chunk_index": i
+                        } for i in range(len(chunks))
+                    ]
+                    
                     vector_store.add_documents(
-                        ids=[str(knowledge.chain_id)],
-                        embeddings=[embedding],
-                        metadatas=[
-                            {
-                                "db_id": str(knowledge.id),
-                                "title": knowledge.title,
-                                "source": knowledge.source,
-                            }
-                        ],
-                        documents=[knowledge.content],
+                        ids=chunk_ids,
+                        embeddings=embeddings,
+                        metadatas=metadatas,
+                        documents=chunks,
                     )
-                    logger.info(f"知识 {knowledge_id} 已验证并加入向量库。")
+                    logger.info(f"知识 {knowledge_id} 已验证并切分为 {len(chunks)} 个块加入向量库。")
                 except Exception as e:
-                    logger.error(f"知识 {knowledge_id} 向量化失败: {e}")
+                    logger.error(f"知识 {knowledge_id} 向量化和切片存入失败: {e}")
             else:
                 logger.warning(f"知识 {knowledge_id} 内容为空，无法嵌入。")
         elif "2" in result_str:

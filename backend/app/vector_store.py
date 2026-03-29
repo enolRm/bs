@@ -42,6 +42,10 @@ class VectorStore:
         """从向量库中删除指定的文档."""
         self._collection.delete(ids=ids)
 
+    def delete_by_metadata(self, filter: Dict[str, Any]) -> None:
+        """根据元数据条件删除文档."""
+        self._collection.delete(where=filter)
+
     def query(
         self,
         query_embedding: List[float],

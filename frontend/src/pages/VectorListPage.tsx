@@ -143,7 +143,7 @@ export const VectorListPage: React.FC = () => {
             <thead className="bg-gray-50/80 sticky top-0 z-10 backdrop-blur-sm">
               <tr>
                 {[
-                  "向量ID(链上ID)",
+                  "向量ID",
                   "本地数据库 ID",
                   "知识标题",
                   "数据来源",

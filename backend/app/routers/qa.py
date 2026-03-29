@@ -35,30 +35,47 @@ async def qa_endpoint(
     # 1. 嵌入用户问题（使用本地 sentence-transformers 模型）
     question_embedding = embed_texts([question])[0]
 
-    # 2. 向量检索
-    search_result = vector_store.query(question_embedding, top_k=5)
+    # 2. 向量检索 (增加 top_k 以提高切片检索召回率)
+    search_result = vector_store.query(question_embedding, top_k=10)
 
     ids: List[str] = search_result.get("ids", [[]])[0]
     metadatas = search_result.get("metadatas", [[]])[0]
     documents = search_result.get("documents", [[]])[0]
 
     # 3. 根据检索到的 id 回查数据库并验证区块链数据一致性
-    contexts = []
+    # 建立 db_id -> {knowledge, chunks} 的映射，用于去重并收集匹配的切片
+    db_id_to_data = {}
     
-    # 首先从数据库批量加载，过滤已通过的状态
-    db_knowledges = []
-    for doc_id, meta in zip(ids, metadatas):
+    for doc_id, meta, doc_content in zip(ids, metadatas, documents):
         try:
-            k_id = int(meta.get("db_id", doc_id))
+            # 兼容旧版本元数据，如果 meta 中没有 db_id，尝试从 doc_id 提取
+            k_id_str = meta.get("db_id")
+            if not k_id_str:
+                # 假设 doc_id 格式为 "chain_id_chunk_N" 或 "chain_id"
+                k_id_str = doc_id.split('_')[0]
+            k_id = int(k_id_str)
         except Exception:
             continue
-        k = db.query(Knowledge).filter(Knowledge.id == k_id).first()
-        if k and k.status == KnowledgeStatus.VERIFIED and k.chain_id:
-            db_knowledges.append(k)
+        
+        if k_id not in db_id_to_data:
+            k = db.query(Knowledge).filter(Knowledge.id == k_id).first()
+            if k and k.status == KnowledgeStatus.VERIFIED and k.chain_id:
+                db_id_to_data[k_id] = {
+                    "knowledge": k,
+                    "chunks": [doc_content]
+                }
+        else:
+            # 已存在，追加匹配的切片（避免重复）
+            if doc_content not in db_id_to_data[k_id]["chunks"]:
+                db_id_to_data[k_id]["chunks"].append(doc_content)
 
-    if not db_knowledges:
+    if not db_id_to_data:
         return {"answer": "知识库中不存在相关内容，无法回答", "contexts": []}
 
+    # 待校验的知识列表
+    db_knowledges = [v["knowledge"] for v in db_id_to_data.values()]
+    contexts = []
+    
     # 如果配置了区块链，则进行链上一致性校验
     if settings.TBAAS_SECRET_ID and settings.TBAAS_SECRET_KEY:
         try:
@@ -126,7 +143,7 @@ async def qa_endpoint(
                     "id": k.id,
                     "title": k.title,
                     "source": k.source,
-                    "content": k.content,
+                    "content": "\n... ".join(db_id_to_data[k.id]["chunks"]),
                 })
             
             # 如果新增了警告，广播通知
@@ -139,12 +156,13 @@ async def qa_endpoint(
             # 这里选择谨慎：如果不一致性校验过程中断（如网络问题），则不将这些知识加入 context。
     else:
         # 未配置区块链，仅依赖本地状态
-        for k in db_knowledges:
+        for k_id, data in db_id_to_data.items():
+            k = data["knowledge"]
             contexts.append({
                 "id": k.id,
                 "title": k.title,
                 "source": k.source,
-                "content": k.content,
+                "content": "\n... ".join(data["chunks"]),
             })
 
     # 如果过滤后没有任何“已通过”且“一致”的知识
@@ -157,7 +175,7 @@ async def qa_endpoint(
     )
     system_prompt = (
         "你是一个基于可信知识库的大模型助手。"
-        "请严格依据给定的知识内容回答用户问题，"
+        "请严格依据给定的知识内容回答用户问题，采用段落式结构，每个段落之间用空行隔开。"
         "如果知识中没有直接相关的信息，请只回答'知识库中不存在相关内容，无法回答'"
         "注意：严禁提及无法真正解答问题的知识，严禁编造。"
         "在回答结尾，请务必按照以下格式列出你实际引用到的知识 ID：\n"
