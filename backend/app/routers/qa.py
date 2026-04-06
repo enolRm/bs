@@ -41,12 +41,30 @@ async def qa_endpoint(
     ids: List[str] = search_result.get("ids", [[]])[0]
     metadatas = search_result.get("metadatas", [[]])[0]
     documents = search_result.get("documents", [[]])[0]
+    distances = search_result.get("distances", [[]])[0]
 
-    # 3. 根据检索到的 id 回查数据库并验证区块链数据一致性
+    # 3. 过滤掉相关度过低的检索结果 (阈值设为 1.5, ChromaDB 默认 L2 距离, 1.5 属于比较宽松的范围)
+    # 如果 top1 的距离都超过了阈值，说明整个库里都没有太相关的内容
+    DISTANCE_THRESHOLD = 1.3
+    
+    valid_indices = []
+    if distances:
+        logger.info("向量检索 Top1 距离: %s", distances[0])
+        for i, dist in enumerate(distances):
+            if dist <= DISTANCE_THRESHOLD:
+                valid_indices.append(i)
+    
+    if not valid_indices:
+        return {"answer": "知识库中不存在相关内容，无法回答", "contexts": []}
+
+    # 4. 根据检索到的 id 回查数据库并验证区块链数据一致性
     # 建立 db_id -> {knowledge, chunks} 的映射，用于去重并收集匹配的切片
     db_id_to_data = {}
     
-    for doc_id, meta, doc_content in zip(ids, metadatas, documents):
+    for idx in valid_indices:
+        doc_id = ids[idx]
+        meta = metadatas[idx]
+        doc_content = documents[idx]
         try:
             # 兼容旧版本元数据，如果 meta 中没有 db_id，尝试从 doc_id 提取
             k_id_str = meta.get("db_id")
@@ -76,7 +94,7 @@ async def qa_endpoint(
     db_knowledges = [v["knowledge"] for v in db_id_to_data.values()]
     contexts = []
     
-    # 如果配置了区块链，则进行链上一致性校验
+    # 5. 如果配置了区块链，则进行链上一致性校验
     if settings.TBAAS_SECRET_ID and settings.TBAAS_SECRET_KEY:
         try:
             client = get_blockchain_client()

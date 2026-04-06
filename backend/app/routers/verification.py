@@ -82,6 +82,11 @@ def vote_knowledge_onchain(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="投票时间不在有效范围内，无法进行投票。",
             )
+        if "voter already cast vote" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="您已经投过票了，请勿重复投票。",
+            )
         raise e
     return {"tx_hash": tx_hash}
 

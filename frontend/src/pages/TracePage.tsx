@@ -31,6 +31,7 @@ export const TracePage: React.FC = () => {
   const [showVoteModal, setShowVoteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [hasVoted, setHasVoted] = useState(false);
 
   const loadList = async () => {
     setLoading(true);
@@ -53,6 +54,7 @@ export const TracePage: React.FC = () => {
   useEffect(() => {
     if (!selected) {
       setHistory([]);
+      setHasVoted(false);
       return;
     }
     setEditTitle(selected.title);
@@ -62,7 +64,20 @@ export const TracePage: React.FC = () => {
       .get<KnowledgeHistoryItem[]>(`/knowledge/${selected.id}/history`)
       .then((r) => setHistory(r.data))
       .catch(() => setHistory([]));
-  }, [selected]);
+
+    // 检查当前用户是否已投票
+    if (user) {
+      api
+        .get<VoteDetails>(`/verification/${selected.id}/votes`)
+        .then((r) => {
+          const allVoters = [...r.data.agree_voters, ...r.data.reject_voters];
+          setHasVoted(allVoters.includes(user.address));
+        })
+        .catch(() => setHasVoted(false));
+    } else {
+      setHasVoted(false);
+    }
+  }, [selected, user]);
 
   useEffect(() => {
     if (user && pendingAction) {
@@ -97,6 +112,7 @@ export const TracePage: React.FC = () => {
     try {
       const resp = await api.post<{ tx_hash: string }>(`/verification/${knowledgeId}/vote`, { support });
       setLastResult({ message: support ? "同意投票已上链" : "反对投票已上链", tx_hash: resp.data.tx_hash });
+      setHasVoted(true);
       await loadList();
       // 更新当前选中的 item 状态
       if (selected) {
@@ -332,17 +348,25 @@ export const TracePage: React.FC = () => {
                     <>
                       <button
                         onClick={() => vote(selected.id, true)}
-                        disabled={!!pending}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 shadow-sm active:scale-95 disabled:opacity-50 transition-all"
+                        disabled={!!pending || hasVoted}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-all ${
+                          !!pending || hasVoted
+                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                            : "bg-green-600 text-white hover:bg-green-700 active:scale-95"
+                        }`}
                       >
-                        {isPendingAction(selected, "vote_yes") ? "提交中..." : "同意"}
+                        {isPendingAction(selected, "vote_yes") ? "提交中..." : hasVoted ? "已投票" : "同意"}
                       </button>
                       <button
                         onClick={() => vote(selected.id, false)}
-                        disabled={!!pending}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold hover:bg-red-700 shadow-sm active:scale-95 disabled:opacity-50 transition-all"
+                        disabled={!!pending || hasVoted}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-all ${
+                          !!pending || hasVoted
+                            ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                            : "bg-red-600 text-white hover:bg-red-700 active:scale-95"
+                        }`}
                       >
-                        {isPendingAction(selected, "vote_no") ? "提交中..." : "反对"}
+                        {isPendingAction(selected, "vote_no") ? "提交中..." : hasVoted ? "已投票" : "反对"}
                       </button>
                     </>
                   )}

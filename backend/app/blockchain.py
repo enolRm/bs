@@ -46,7 +46,9 @@ class BlockchainClient:
             req.FuncParam = json.dumps(func_param)
 
             resp = self.client.InvokeChainMakerDemoContract(req)
-            req.AsyncFlag = 0 # 0为同步执行，1为异步执行
+            if resp.Result.Code != 0:
+                logger.error(f"Contract execution failed: {resp.Result.Message}")
+                raise RuntimeError(f"Contract execution failed: {resp.Result.Message}")
             return resp
         except TencentCloudSDKException as err:
             logger.error(f"TencentCloudSDKException: {err}")
